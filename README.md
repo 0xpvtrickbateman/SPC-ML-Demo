@@ -37,7 +37,7 @@ For a real deployment, calibrate rules with process owners, test false-alert bur
 
 ## Optional presentation extras
 
-- **Delta tables:** `synthetic_daily`, `spc_signals`, `spc_predictions`, `count_forecasts`, `review_queue`, `monitoring_snapshot` under `OUTPUT_SCHEMA`.
+- **Delta tables:** `demo_daily`, `spc_signals`, `spc_predictions`, `count_forecasts`, `review_queue`, `monitoring_snapshot` under `OUTPUT_SCHEMA`.
 - **Dashboard:** `sql/dashboard_queries.sql` contains read-only starter queries after tables exist. A notebook chart is sufficient if SQL warehouse or dashboard access is delayed.
 - **Job:** create a Lakeflow Job with one notebook task targeting `notebooks/SPC_ML_Demo.py`; run it once and inspect its output before optionally scheduling it. See `docs/job-setup.md`.
 - **Version control:** develop on a branch, review changes, then pull them into the Databricks Git folder. Source notebooks do not normally commit output charts; rerun after pulling.

@@ -4,7 +4,7 @@
 # environment_version = "5"
 # ///
 # MAGIC %md
-# MAGIC # SPC signal detection — AttainX synthetic demo
+# MAGIC # SPC signal detection — AttainX demo
 # MAGIC
 # MAGIC This notebook generates fictional operational counts inside AttainX. It reads no external data.
 # MAGIC It demonstrates XmR, CUSUM, and EWMA control rules; a classifier that reproduces their
@@ -14,7 +14,7 @@
 # MAGIC **Interpretation:** A signal means a statistical rule fired, not that a real problem was confirmed.
 # MAGIC The classifier reproduces a rule-generated label from same-window measurements; it does not predict
 # MAGIC a future incident. The forecast is genuinely forward-looking, but its scores describe only this
-# MAGIC synthetic dataset. Neither model decides whether a process problem occurred.
+# MAGIC fictional dataset. Neither model decides whether a process problem occurred.
 
 # COMMAND ----------
 
@@ -50,7 +50,7 @@ CUSUM_K_FACTOR = 0.5
 CUSUM_H_MULTIPLIER = 4.77
 EWMA_LAMBDA = 0.10
 EWMA_L = 2.703
-DATASET_ID = f"attainx_synthetic_v1_seed{SEED}"
+DATASET_ID = f"attainx_demo_v1_seed{SEED}"
 
 # Optional: set to an existing Unity Catalog catalog.schema after the first successful run.
 # Example: OUTPUT_SCHEMA = "demo_catalog.spc_demo". Empty means charts/MLflow only.
@@ -66,13 +66,13 @@ plt.rcParams.update({"figure.figsize": (11, 4), "axes.grid": True, "grid.alpha":
 # MAGIC %md
 # MAGIC ### Cell 2: Make a safe example dataset
 # MAGIC **Plain English:** Create three imaginary daily work queues. We plant a few jumps and sustained changes so there is something for the chart to find.
-# MAGIC **Technique:** A seeded NumPy generator makes repeatable synthetic time series. Assertions check unique dates and nonnegative counts.
-# MAGIC **Output:** `daily_df` has one count per business day and fictional series. `dataset_id` identifies this synthetic run.
+# MAGIC **Technique:** A seeded NumPy generator makes repeatable fictional time series. Assertions check unique dates and nonnegative counts.
+# MAGIC **Output:** `daily_df` has one count per business day and fictional series. `dataset_id` identifies this demo run.
 # MAGIC **Developer note:** The planted changes help explain the demo; they are no proof that real agency data behave this way.
 
 # COMMAND ----------
 
-# DBTITLE 1,Generate synthetic operational series
+# DBTITLE 1,Generate fictional operational series
 rng = np.random.default_rng(SEED)
 dates = pd.bdate_range("2025-01-06", periods=N_DAYS)
 series_config = {"Intake A": (110, 11), "Completions A": (94, 10), "Intake B": (75, 9)}
@@ -203,7 +203,7 @@ print(signals_df[["xmr_signal", "cusum_signal", "ewma_signal"]].mean().map(lambd
 # Each feature is known at the end of the 25-day window; no future values are inputs.
 # The evaluation starts 25 business days after training ends, so the 25-day
 # measurement windows cannot overlap. Earlier 90-day reference histories can overlap.
-# Metrics describe synthetic rule reproduction, not real-world performance.
+# Metrics describe rule reproduction on fictional data, not real-world performance.
 feature_cols = ["window_mean", "window_std", "window_range", "mr_mean",
                 "last_value", "last_5_mean", "last_5_std", "trend", "baseline_mean", "baseline_sigma",
                 "max_baseline_deviation", "max_window_deviation"]
@@ -299,7 +299,7 @@ print(pd.Series(forecast_metrics).round(2).to_string())
 if forecast_metrics["forecast_mae"] >= forecast_metrics["trailing_mean_baseline_mae"]:
     print("The forecast did not beat the trailing-mean baseline here; show the comparison honestly.")
 else:
-    print("The forecast beat the trailing-mean baseline on this synthetic test only.")
+    print("The forecast beat the trailing-mean baseline on this demo test only.")
 
 # COMMAND ----------
 
@@ -322,7 +322,7 @@ ax.plot(chart_df.run_date, chart_df.lcl, color="#B8603C", linestyle=":", label="
 marked = chart_df[chart_df.signal_detected]
 ax.scatter(marked.run_date, marked.last_value, facecolor="white", edgecolor="#853B32",
            s=30, linewidth=1.2, label="Rule signal for 25-day window")
-ax.set(title="Synthetic SPC history — Intake A (last 90 runs)", xlabel="Run date", ylabel="Daily count")
+ax.set(title="Fictional SPC history — Intake A (last 90 runs)", xlabel="Run date", ylabel="Daily count")
 ax.legend(loc="upper left", fontsize=8)
 fig.text(0.08, 0.01, "Circles mean any rule fired in the prior 25 days; the plotted point need not cross an XmR limit.",
          fontsize=8, color="#444444")
@@ -333,7 +333,7 @@ plt.show()
 fig, ax = plt.subplots(figsize=(5, 4))
 ConfusionMatrixDisplay.from_predictions(y_test, pred, display_labels=["No signal", "Signal"],
                                         cmap="Blues", colorbar=False, ax=ax)
-ax.set_title(f"Synthetic test: {len(y_test)} labeled windows")
+ax.set_title(f"Demo test: {len(y_test)} labeled windows")
 plt.tight_layout()
 plt.show()
 
@@ -341,7 +341,7 @@ forecast_chart = forecast_results_df[forecast_results_df.series_id == chosen].ta
 fig, ax = plt.subplots(figsize=(11, 4))
 ax.plot(forecast_chart.run_date, forecast_chart.daily_count, label="Observed", color="#145A7D")
 ax.plot(forecast_chart.run_date, forecast_chart.predicted_count, label="Predicted before observation", color="#B8603C")
-ax.set(title="Next-business-day forecast — held-out synthetic dates", xlabel="Date", ylabel="Daily count")
+ax.set(title="Next-business-day forecast — held-out demo dates", xlabel="Date", ylabel="Daily count")
 ax.legend()
 fig.autofmt_xdate()
 plt.tight_layout()
@@ -427,8 +427,8 @@ else:
     # Databricks notebooks automatically use their notebook experiment.
     # MLflow 2 uses artifact_path; MLflow 3 uses name for logged models.
     model_path_arg = "name" if "name" in signature(mlflow.sklearn.log_model).parameters else "artifact_path"
-    with mlflow.start_run(run_name="attainx_spc_synthetic_models") as run:
-        mlflow.log_params({"source": "synthetic", "seed": SEED, "window": WINDOW,
+    with mlflow.start_run(run_name="attainx_spc_demo_models") as run:
+        mlflow.log_params({"source": "fictional", "seed": SEED, "window": WINDOW,
                            "dataset_id": DATASET_ID, "baseline_days": BASELINE_DAYS, "model": "random_forest",
                            "n_estimators": 100, "max_depth": 8})
         mlflow.log_metrics(metrics)
@@ -460,14 +460,14 @@ else:
 
 # COMMAND ----------
 
-# DBTITLE 1,Optional: write synthetic demo tables to Unity Catalog Delta
+# DBTITLE 1,Optional: write fictional demo tables to Unity Catalog Delta
 if OUTPUT_SCHEMA:
     assert re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*", OUTPUT_SCHEMA), (
         "Set OUTPUT_SCHEMA to an existing catalog.schema using simple identifiers."
     )
     assert "spark" in globals(), "Delta outputs require a Databricks notebook with Spark."
     for table_name, frame in [
-        ("synthetic_daily", daily_df),
+        ("demo_daily", daily_df),
         ("spc_signals", signals_df),
         ("spc_predictions", predictions_df),
         ("count_forecasts", forecast_results_df),
@@ -496,5 +496,5 @@ else:
 # MAGIC 3. One model approximates the rule label; a separate model predicts the *next* business day's count.
 # MAGIC 4. We evaluate on later dates, with a 25-business-day gap, against simple baselines. Read the printed metrics, including cases where ML loses.
 # MAGIC 5. The review queue names the triggering rule and leaves disposition pending. No action is automatic.
-# MAGIC 6. The source ID, synthetic dataset ID, MLflow run, and optional Delta tables make this run inspectable.
-# MAGIC 7. This is a synthetic demonstration. Its metrics do not describe USCIS performance or a deployed capability.
+# MAGIC 6. The source ID, demo dataset ID, MLflow run, and optional Delta tables make this run inspectable.
+# MAGIC 7. This demonstration uses fictional counts. Its metrics do not describe USCIS performance or a deployed capability.
