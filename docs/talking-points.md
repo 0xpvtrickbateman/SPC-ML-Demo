@@ -98,3 +98,15 @@ Use the tables directly in the notebook: “Here are the original counts. We sum
 Follow the same Intake A dates through Cells 2, 4, 5, 6 and 9. Explain that `last_value` belongs to `window_end`, while the observed `daily_count` belongs to `run_date`. Cell 8 explicitly switches to one review episode and its contributing daily rows. Cell 10 shows three parent dates expanding to six office rows whose counts reconcile. A row does not mean the same thing after grouping or splitting.
 
 The earlier slide-by-slide notes still apply; these tables provide an additional live explanation within the existing 20 cells.
+
+## Drift and dashboard follow-up: Cells 21–22
+
+“We watch two different things: whether the inputs change, and whether the predictions become less accurate after actual results arrive. Input change is an early warning; it does not automatically mean model failure.”
+
+In the dashboard, select Intake A and Recorded replay. The first held-out window establishes MAE of 10.56 counts. The latest window is 8.56, so it does not meet this demo's retraining-review rule. The chart also shows a simple forecasting baseline; model error alone is not enough context.
+
+Switch to Performance drift exercise in Cell 22, or open the native dashboard's Drift exercise page. “We deliberately add 35 counts to the later outcomes while preserving the saved predictions and inputs. After one worse window we watch; after two, we request a review.” The Intake A exercise errors are 34.28 then 29.54, above the 13.20-count threshold. The original results remain intact.
+
+If asked about retraining: “First we check the data, workload and operating process. If the evidence supports retraining, we train a candidate on representative recent history and compare it with the current model and a simple baseline on later unseen dates. We version the results in MLflow, obtain approval, promote the candidate and keep the prior version for rollback.”
+
+The 0.5 input-distance and 25% error thresholds are illustrative and need calibration. Actual outcomes may arrive late, so performance monitoring must wait for sufficient matched results. This demonstration does not diagnose concept drift, send alerts, retrain automatically or change a production model. Refreshing the SQL dashboard only rereads notebook outputs.

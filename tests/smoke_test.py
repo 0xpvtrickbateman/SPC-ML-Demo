@@ -75,8 +75,8 @@ with sqlite3.connect(":memory:") as connection:
 source=(root/"notebooks"/"SPC_ML_Demo.py").read_text()
 cells=source.split("# COMMAND ----------")
 code=[(i,c) for i,c in enumerate(cells) if "# DBTITLE 1," in c]
-assert len(code)==20
+assert len(code)==22
 for n,(i,c) in enumerate(code,1):assert f"### Cell {n}:" in cells[i-1]
 assert "synthetic" not in source.lower()
-print("Expanded smoke test passed: 20 cells, chronological folds, future forecasts, history, lifecycle and replay checks.")
+print("Expanded smoke test passed: 22 cells, chronological folds, future forecasts, history, lifecycle and replay checks.")
 print(output.getvalue())

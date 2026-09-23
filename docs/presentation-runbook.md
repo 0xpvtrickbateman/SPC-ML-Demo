@@ -4,7 +4,7 @@
 
 ## Current local evidence
 
-The expanded notebook runs all 20 code cells and produces ten figures. Dataset `attainx_demo_v2_seed42` has 1,260 counts and 915 labeled windows. Dependencies are locked in `requirements-demo-lock.txt`, including statsmodels 0.14.6. The federal-holiday calendar ends the observations on September 8, 2026; future predictions use later business dates.
+The expanded notebook runs all 22 code cells and produces ten figures. Dataset `attainx_demo_v2_seed42` has 1,260 counts and 915 labeled windows. Dependencies are locked in `requirements-demo-lock.txt`, including statsmodels 0.14.6. The federal-holiday calendar ends the observations on September 8, 2026; future predictions use later business dates.
 
 | Check | Observed result |
 | --- | --- |
@@ -17,7 +17,7 @@ The expanded notebook runs all 20 code cells and produces ten figures. Dataset `
 | Review grouping | 479 flagged windows, 30 episodes, latest 15 pending |
 | Isolation Forest | 25 of 228 held-out windows flagged; no verified incident labels |
 | Daily replay | Two prepared notices, four suppressed repeats, no delivery |
-| Local checks | Full execution/invariants plus simulated MLflow 2.x/3.x and 19-table Delta contracts |
+| Local checks | Full execution/invariants; ten dashboard SQL queries in DuckDB; simulated MLflow 2.x/3.x and 19+3-table Delta contracts |
 | Slides | 22 slides, updated notes, package/layout and rendered visual inspection |
 | Target services | Actual Databricks run, MLflow/registry, Delta, schedule and SQL dashboard remain unverified |
 
@@ -27,12 +27,12 @@ Metrics from different evaluation schemes are not interchangeable. Five-day sele
 
 1. Record `git status --short` and `git rev-parse HEAD`. Use the reviewed revision, not an assumed branch tip.
 2. In the isolated local Python 3.12 environment, install `requirements-demo-lock.txt` and run the three commands in README. Confirm all pass.
-3. In the authorized Databricks Git folder, pull that revision or import the source. Verify all 20 numbered explanatory markdown cells render.
+3. In the authorized Databricks Git folder, pull that revision or import the source. Verify all 22 numbered explanatory markdown cells render.
 4. Select presentation compute and record its runtime/packages. Install missing dependencies through its allowed process; restart Python when required.
-5. Keep both optional destination strings empty initially. MLflow logging still requires experiment write access when installed. Run all 20 cells.
+5. Keep both optional destination strings empty initially. MLflow logging still requires experiment write access when installed. Run all 22 cells.
 6. Inspect ten figures, forecast dates, baseline comparisons, pending queue, hypotheses, history decisions and outbox statuses. Use actual run numbers if they differ from this local record.
 7. Open the MLflow run and all four returned sklearn model URIs. Confirm artifacts can be loaded in the intended environment. Five-day statistical model objects are not logged by this notebook.
-8. If a dedicated writable demo schema is ready, enable `OUTPUT_SCHEMA` and rerun. Confirm all 19 tables match `DEMO_TABLES` row counts. Rerun again and verify duplicate keys do not appear. Old incompatible schemas need separate migration; do not assume this cell handles them.
+8. If a dedicated writable demo schema is ready, enable `OUTPUT_SCHEMA` and rerun. Confirm all 22 tables match `DEMO_TABLES` and `DRIFT_TABLES` row counts. Rerun again and verify duplicate keys do not appear. Old incompatible schemas need separate migration; do not assume this cell handles them.
 9. Optionally enable a permitted three-part `UC_MODEL_NAME`. Inspect four registered versions, `demo_only` tags and `demo_candidate` aliases. Keep production objects out of scope.
 10. Follow [job setup](job-setup.md) for a manual job run. Use [SQL queries](../sql/dashboard_queries.sql) only after table verification. A notebook dashboard is already available in Cell 18.
 11. Rehearse the seven-minute path below and retain a private execution receipt. Unavailable services should be described as unverified.
@@ -59,13 +59,17 @@ Keep workspace identifiers and reference exports outside the public repository.
 Operator / date:
 Source SHA / parameter edits:
 Workspace / compute / runtime (private):
-Cells 1–20 completed; ten figures inspected:
+Cells 1–22 completed; ten figures inspected:
 Actual metrics and baseline comparisons:
 MLflow run and four model URIs opened:
-Delta destination and 19 row/key checks, or off:
+Delta destination and 22 row/key checks, or off:
 Registered candidate versions/tags/aliases, or off:
 Job run / source revision, or not demonstrated:
 SQL dashboard checks, or not demonstrated:
 Errors, resolutions and final full-rerun result:
 Remaining gaps / presenter:
 ```
+
+## Optional drift and dashboard walkthrough
+
+Use Cells 21–22 and [the dashboard setup guide](../dashboards/README.md). The original 22-slide deck remains the core presentation; use the new dashboard as a live follow-up for drift/retraining questions. Native dashboard import, query execution and rendering are still target-workspace checks.

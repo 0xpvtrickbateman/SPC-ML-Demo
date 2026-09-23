@@ -1,8 +1,9 @@
 # SPC ML Demo
 
-An AttainX demonstration using fictional daily counts. The Databricks notebook contains **20 executable cells and ten figures**, with plain-English explanations immediately above each code cell. It accesses no USCIS data or services.
+An AttainX demonstration using fictional daily counts. The Databricks notebook contains **22 executable cells, ten figures and an interactive drift dashboard**, with plain-English explanations immediately above each code cell. It accesses no USCIS data or services.
 
 - [Notebook](notebooks/SPC_ML_Demo.py)
+- [Dashboard setup helper](dashboards/setup.html), [preview](dashboards/preview.html), and [click-by-click guide](dashboards/README.md)
 - [22-slide presenter deck with speaker notes](docs/SPC_ML_Demo_Walkthrough_Ready.pptx)
 - [Talking points](docs/talking-points.md) and [rehearsal runbook](docs/presentation-runbook.md)
 - [Reference coverage and remaining differences](docs/reference-mapping.md)
@@ -18,6 +19,7 @@ An AttainX demonstration using fictional daily counts. The Databricks notebook c
 | 14–15 | Five-hop fixture lineage, column mapping, freshness, event matching and investigation hypotheses |
 | 16–18 | Forecast history and retraining safeguards, candidate/rollback exercise, daily notice replay and review dashboard |
 | 19–20 | Four optional MLflow model artifacts, demo registry aliases/tags, 19 optional Delta tables with keyed MERGE |
+| 21–22 | Input drift, error deterioration, a separate controlled exercise, interactive dashboard and three additional optional Delta tables |
 
 ## Show the dataframe transformations
 
@@ -58,11 +60,11 @@ The smoke test executes the full notebook and checks time boundaries, forecast h
 
 ## Run in Databricks
 
-Pull the intended reviewed branch/revision into the authorized Git folder, or import `notebooks/SPC_ML_Demo.py`. Install missing dependencies through the compute's supported environment process, including statsmodels. Open the notebook, verify Cell 1–20 markdown, select presentation compute and run all cells.
+Pull the intended reviewed branch/revision into the authorized Git folder, or import `notebooks/SPC_ML_Demo.py`. Install missing dependencies through the compute's supported environment process, including statsmodels. Open the notebook, verify Cell 1–22 markdown, select presentation compute and run all cells.
 
 Start with `OUTPUT_SCHEMA = ""` and `UC_MODEL_NAME = ""`. MLflow still attempts experiment logging when installed and requires experiment permissions. Inspect ten figures and the printed tables. Then verify four returned model URIs if logging succeeds.
 
-For optional writes, use a **new dedicated demo schema**. Setting `OUTPUT_SCHEMA` enables 19 keyed Delta MERGEs; it does not migrate incompatible old schemas. Setting `UC_MODEL_NAME` registers four sklearn candidates with `demo_only` tags and `demo_candidate` aliases. No production alias is changed. Five-day statsmodels fits are not logged as model artifacts; predictions and assessments are retained as tables.
+For optional writes, use a **new dedicated demo schema**. Setting `OUTPUT_SCHEMA` enables 22 keyed Delta MERGEs (19 workflow tables plus three drift tables); it does not migrate incompatible old schemas. Setting `UC_MODEL_NAME` registers four sklearn candidates with `demo_only` tags and `demo_candidate` aliases. No production alias is changed. Five-day statsmodels fits are not logged as model artifacts; predictions and assessments are retained as tables.
 
 See [job setup](docs/job-setup.md) and [SQL starter queries](sql/dashboard_queries.sql). Real MLflow/registry writes, Spark/Delta execution, schedules and SQL dashboards remain unverified on target compute. Notifications are prepared locally and never delivered. A full run retrains the demo models; it is not a separate production inference service.
 

@@ -11,11 +11,11 @@
 # MAGIC same-window label; a separate **next-business-day count forecast**; chronological evaluation;
 # MAGIC analyst review candidates; five-day ARIMA/Holt-Winters forecasts; Isolation Forest;
 # MAGIC subgroup analysis; fixture lineage and investigation; historical assessment; lifecycle exercises;
-# MAGIC a daily replay dashboard; and optional MLflow and Delta integration.
+# MAGIC a daily replay dashboard; drift monitoring; an interactive dashboard; and optional MLflow and Delta integration.
 # MAGIC
 # MAGIC **Dataframe walkthrough:** Cells 2–10 show compact views of Intake A across the same five dates. Headers explain added columns, filters, joins and changes in what a row represents. Classifier, forecast, review and subgroup results are branches of the source data, not one long chain.
 # MAGIC
-# MAGIC **Run all 20 code cells.** Install `requirements-demo-lock.txt` in the notebook environment first.
+# MAGIC **Run all 22 code cells.** Install `requirements-demo-lock.txt` in the notebook environment first.
 # MAGIC The lineage, operational events and reviewer actions are fictional fixtures. No notifications are sent.
 # MAGIC
 # MAGIC **Interpretation:** A signal means a statistical rule fired, not that a real problem was confirmed.
@@ -1077,6 +1077,184 @@ if OUTPUT_SCHEMA:
         print("Merged", len(output_frame), "rows into", table)
 else:
     print(f"Delta writes are off. {len(DEMO_TABLES)} demo tables are ready in memory; set OUTPUT_SCHEMA only after permission checks.")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Cell 21: Detect input changes and deteriorating predictions
+# MAGIC **Plain English:** Compare three numeric model inputs with their training distributions. Separately, compare forecast errors once actual counts arrive.
+# MAGIC **Method:** Three nonoverlapping 25-business-day holdout windows per series. The first is the performance reference; the next two are monitoring periods. The trained one-day model stays frozen.
+# MAGIC **Input drift:** Wasserstein distance divided by training standard deviation summarizes distribution change. Above 0.5 is an illustrative investigation threshold, not a significance test. We monitor `last_value`, `window_std` and `trend`, not every input.
+# MAGIC **Performance drift:** MAE is average absolute error in count units. Review after two consecutive complete windows exceed reference MAE by 25%. At least 20 matched actuals are required per window. Thresholds need calibration on real history.
+# MAGIC **Exercise:** A separately labeled scenario adds 35 counts to outcomes in the two monitoring windows. Inputs and saved predictions stay unchanged. This tests the detector; it is not a new fitted model or a forecast backtest.
+# MAGIC **Decision:** Investigate data quality, seasonality and operational changes before retraining. These diagnostics do not establish concept drift or its cause.
+
+# COMMAND ----------
+# DBTITLE 1,Drift monitoring with a frozen forecast model
+from scipy.stats import wasserstein_distance
+
+DRIFT_WINDOW = 25
+DRIFT_MIN_ACTUALS = 20
+DRIFT_MAE_RATIO = 1.25
+DRIFT_INPUT_THRESHOLD = 0.5
+DRIFT_FEATURES = ["last_value", "window_std", "trend"]
+DRIFT_SCENARIOS = ["Recorded replay", "Performance drift exercise"]
+
+def input_shift_score(reference, current):
+    reference = np.asarray(reference, dtype=float)
+    current = np.asarray(current, dtype=float)
+    reference = reference[np.isfinite(reference)]
+    current = current[np.isfinite(current)]
+    if len(reference) < 20 or len(current) < 20:
+        return np.nan
+    scale = reference.std(ddof=1)
+    # A constant reference has no meaningful standard-deviation unit.
+    if scale < 1e-9:
+        return 0.0 if np.array_equal(np.unique(reference), np.unique(current)) else np.nan
+    return float(wasserstein_distance(reference, current) / scale)
+
+def performance_status(n_actuals, reference_n, reference_mae, current_mae, previous_worse, window_number):
+    if min(n_actuals, reference_n) < DRIFT_MIN_ACTUALS:
+        return "Insufficient actuals", False
+    if window_number == 0:
+        return "Reference window", False
+    # A one-count floor avoids unstable percentage changes near zero error.
+    worse = current_mae > max(reference_mae, 1.0) * DRIFT_MAE_RATIO
+    if worse and previous_worse:
+        return "Review for retraining", True
+    return ("Watch: one worse window" if worse else "Within demo tolerance"), bool(worse)
+
+drift_dates = np.sort(forecast_results_df.run_date.unique())
+drift_date_windows = [drift_dates[i:i + DRIFT_WINDOW] for i in range(0, len(drift_dates), DRIFT_WINDOW)]
+drift_input_rows, drift_performance_rows, drift_daily_parts = [], [], []
+for series_id, result_group in forecast_results_df.groupby("series_id"):
+    reference_inputs = forecast_df.loc[forecast_train & forecast_df.series_id.eq(series_id)]
+    for scenario in DRIFT_SCENARIOS:
+        previous_worse = False
+        reference_mae = None
+        reference_n = 0
+        for window_number, window_dates in enumerate(drift_date_windows):
+            current = result_group[result_group.run_date.isin(window_dates)].sort_values("run_date").copy()
+            current["scenario"] = scenario
+            current["window_number"] = window_number
+            current["evaluation_actual"] = current.daily_count.astype(float)
+            if scenario == "Performance drift exercise" and window_number > 0:
+                current["evaluation_actual"] += 35.0
+            current["model_error"] = current.evaluation_actual - current.predicted_count
+            current["baseline_error"] = current.evaluation_actual - current.trailing_mean_baseline
+            valid = current[["evaluation_actual", "predicted_count", "trailing_mean_baseline"]].notna().all(axis=1)
+            matched = current.loc[valid]
+            n_actuals = len(matched)
+            mae = float(matched.model_error.abs().mean())
+            if window_number == 0:
+                reference_mae, reference_n = mae, n_actuals
+            status, previous_worse = performance_status(n_actuals, reference_n, reference_mae, mae, previous_worse, window_number)
+            drift_performance_rows.append({
+                "dataset_id": DATASET_ID, "series_id": series_id, "scenario": scenario,
+                "window_number": window_number, "window_start": pd.Timestamp(window_dates[0]),
+                "window_end": pd.Timestamp(window_dates[-1]), "n_actuals": n_actuals,
+                "expected_actuals": len(window_dates), "coverage": n_actuals / len(window_dates),
+                "mae": mae, "reference_mae": reference_mae,
+                "review_threshold": max(reference_mae, 1.0) * DRIFT_MAE_RATIO,
+                "baseline_mae": float(matched.baseline_error.abs().mean()),
+                "bias": float(matched.model_error.mean()), "status": status,
+                "model_version": "one_day_rf_seed42_frozen",
+            })
+            drift_daily_parts.append(current)
+            current_inputs = forecast_df[forecast_df.series_id.eq(series_id) & forecast_df.run_date.isin(window_dates)]
+            for feature in DRIFT_FEATURES:
+                score = input_shift_score(reference_inputs[feature], current_inputs[feature])
+                drift_input_rows.append({
+                    "dataset_id": DATASET_ID, "series_id": series_id, "scenario": scenario,
+                    "window_number": window_number, "window_end": pd.Timestamp(window_dates[-1]),
+                    "feature": feature, "shift_score": score, "threshold": DRIFT_INPUT_THRESHOLD,
+                    "reference_n": int(reference_inputs[feature].notna().sum()),
+                    "current_n": int(current_inputs[feature].notna().sum()),
+                    "missing_rate": float(current_inputs[feature].isna().mean()),
+                    "status": "Insufficient variation or data" if not np.isfinite(score) else
+                              ("Investigate input change" if score > DRIFT_INPUT_THRESHOLD else "Within demo tolerance"),
+                })
+drift_inputs_df = pd.DataFrame(drift_input_rows)
+drift_performance_df = pd.DataFrame(drift_performance_rows)
+drift_daily_df = pd.concat(drift_daily_parts, ignore_index=True)
+print(drift_performance_df[["series_id", "scenario", "window_number", "n_actuals", "mae", "reference_mae", "status"]].round(2).to_string(index=False))
+print("Model inputs and original forecast scores are unchanged. Drift exercise outcomes are separate evaluation values.")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Cell 22: Explain the evidence in a dashboard
+# MAGIC **Show:** Start with Recorded replay, choose a series, then switch to Performance drift exercise. Watch error cross the review threshold for two windows; input scores stay the same.
+# MAGIC **Read:** Overview connects actual counts, predictions and the simple baseline. Drift separates input change from error deterioration. Decisions explains investigation, retraining, validation and rollback.
+# MAGIC **Save:** Setting `OUTPUT_SCHEMA` in Cell 1 writes three additional demo tables below. Import `dashboards/AttainX_SPC_Demo.lvdash.json` in Databricks Dashboards and select your SQL warehouse. Its default catalog/schema must match `OUTPUT_SCHEMA` (or bind the JSON using the supplied script).
+# MAGIC **Boundary:** This is a fixed historical replay, not live monitoring. Dashboard refresh reads saved results; rerunning all cells also retrains the demo models. Production monitoring would score with a frozen registered model and join newly arrived actuals separately.
+
+# COMMAND ----------
+# DBTITLE 1,Interactive drift dashboard and optional Delta outputs
+DRIFT_TABLES = {
+    "demo_drift_inputs": (drift_inputs_df, ["scenario", "series_id", "window_number", "feature"]),
+    "demo_drift_performance": (drift_performance_df, ["scenario", "series_id", "window_number"]),
+    "demo_drift_daily": (drift_daily_df, ["scenario", "series_id", "run_date"]),
+}
+if OUTPUT_SCHEMA:
+    assert re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*", OUTPUT_SCHEMA)
+    assert "spark" in globals(), "Delta outputs require Databricks Spark."
+    for table_name, (frame, keys) in DRIFT_TABLES.items():
+        output_frame = frame.copy()
+        keys = ["dataset_id"] + keys
+        assert not output_frame.duplicated(keys).any(), table_name
+        for col in output_frame:
+            if pd.api.types.is_datetime64_any_dtype(output_frame[col]):
+                output_frame[col] = output_frame[col].dt.strftime("%Y-%m-%dT%H:%M:%S")
+        view = "spc_demo_" + table_name
+        spark.createDataFrame(output_frame).createOrReplaceTempView(view)
+        table = f"{OUTPUT_SCHEMA}.{table_name}"
+        spark.sql(f"CREATE TABLE IF NOT EXISTS {table} USING DELTA AS SELECT * FROM {view} WHERE 1=0")
+        on = " AND ".join(f"target.`{key}` = source.`{key}`" for key in keys)
+        spark.sql(f"MERGE INTO {table} AS target USING {view} AS source ON {on} WHEN MATCHED THEN UPDATE SET * WHEN NOT MATCHED THEN INSERT *")
+        print("Merged", len(output_frame), "rows into", table)
+else:
+    print("Drift tables are in memory. Set OUTPUT_SCHEMA to save them for the native SQL dashboard.")
+
+import json
+
+def dashboard_records(frame):
+    return json.loads(frame.to_json(orient="records", date_format="iso"))
+
+dashboard_payload = {
+    "dataset": DATASET_ID,
+    "performance": dashboard_records(drift_performance_df),
+    "inputs": dashboard_records(drift_inputs_df),
+    "daily": dashboard_records(drift_daily_df),
+    "reviews": dashboard_records(review_df),
+}
+DASHBOARD_HTML = r'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AttainX · SPC and model monitoring</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f2f5f7;color:#132f42;font:15px/1.5 system-ui,-apple-system,sans-serif}main{max-width:1240px;margin:auto;padding:28px}h1{font-size:27px;letter-spacing:-.7px;margin:0}h2{font-size:18px;margin:0 0 8px}p{margin:6px 0;color:#526675}.top,.controls,.tabs,.legend{display:flex;align-items:center;gap:18px;flex-wrap:wrap}.top{justify-content:space-between}.tag{background:#e0ecf3;padding:5px 10px;border-radius:6px;font-size:12px}.controls{margin:22px 0 14px}.controls label{font-size:12px;font-weight:650;display:grid;gap:5px}select,button{font:inherit;border:1px solid #bccbd4;border-radius:6px;background:white;color:#163b52;padding:8px 12px}button{cursor:pointer}button:focus-visible,select:focus-visible{outline:3px solid #2687c3;outline-offset:2px}.tabs{border-bottom:1px solid #ced9df;gap:5px;margin:18px 0}.tabs button{border:0;border-radius:6px 6px 0 0;background:transparent}.tabs button[aria-selected=true]{background:#123f5c;color:white}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:16px 0}.card,.panel{background:white;border:1px solid #dee6eb;border-radius:10px;padding:20px}.metric{font-size:29px;font-weight:650;line-height:1.3;margin:7px 0}.label{font-size:12px;color:#526675}.grid{display:grid;grid-template-columns:1.15fr 1fr;gap:16px}.panel{margin-bottom:16px;min-width:0}.notice{border-left:4px solid #227c9d;background:#e5f1f6;padding:12px 16px;margin-bottom:16px}.exercise{background:#fff0d9;border-color:#b67a22}.good{color:#087d71}.warn{color:#9a541e}.badge{font-size:13px;font-weight:650}.chart{width:100%;height:auto;display:block}.legend{font-size:12px;gap:16px}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:10px 8px;border-bottom:1px solid #e5ebef}th{font-size:11px;color:#526675;white-space:nowrap}td:last-child{min-width:170px}.scroll{overflow:auto}.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.step{border-top:3px solid #168d81;padding-top:12px}.step strong{display:block}.step p{font-size:13px}.foot{font-size:12px;margin-top:18px}section[hidden]{display:none}svg text{font-family:system-ui;font-size:11px;fill:#526675}.empty{padding:30px;text-align:center}@media(max-width:800px){main{padding:16px}.grid,.cards,.steps{grid-template-columns:1fr}.metric{font-size:25px}h1{font-size:23px}.top{gap:8px}}
+</style></head><body><main>
+<div class="top"><h1>SPC & model monitoring</h1><span class="tag">AttainX · Fictional demo data</span></div>
+<p>Are operations changing, are predictions still useful, and what should we do next?</p>
+<div class="controls"><label>Work queue<select id="series"></select></label><label>Evidence<select id="scenario"><option>Recorded replay</option><option>Performance drift exercise</option></select></label><span class="label" id="period"></span></div>
+<div id="notice" class="notice"></div>
+<nav class="tabs" aria-label="Dashboard sections" role="tablist"><button id="tab-overview" role="tab" aria-controls="overview" aria-selected="true" data-tab="overview">1 · Overview</button><button id="tab-drift" role="tab" aria-controls="drift" aria-selected="false" data-tab="drift">2 · Detect drift</button><button id="tab-decisions" role="tab" aria-controls="decisions" aria-selected="false" data-tab="decisions">3 · Decide what to do</button></nav>
+<section id="overview" role="tabpanel" aria-labelledby="tab-overview"><div class="cards" id="cards"></div><div class="panel"><h2>Actual counts and the forecasts made before them</h2><p>One-day predictions from a frozen random forest. Compare with the trailing five-day mean.</p><div id="daily-chart"></div></div><div class="panel"><h2>How the evidence connects</h2><div class="steps"><div class="step"><strong>Daily counts</strong><p>One row per queue and business day.</p></div><div class="step"><strong>Historical features</strong><p>Summaries use earlier dates, excluding the day being forecast.</p></div><div class="step"><strong>Rules & predictions</strong><p>SPC finds process changes. The forecast estimates the next count.</p></div><div class="step"><strong>Observed outcomes</strong><p>Join actuals to saved predictions, then assess error and review.</p></div></div></div></section>
+<section id="drift" role="tabpanel" aria-labelledby="tab-drift" hidden><div class="grid"><div class="panel"><h2>Have inputs moved away from training?</h2><p>Latest 25 business days. Distribution distance in training standard-deviation units; larger means more change.</p><div id="input-chart"></div><p class="label">0.5 is a demo investigation threshold. Three numeric features only. Input change alone does not mean the model has failed.</p></div><div class="panel"><h2>Are forecast errors getting worse?</h2><p>Average absolute error (MAE), in counts. Three separate 25-business-day windows.</p><div id="error-chart"></div><p class="label">Review after two consecutive windows above 125% of the reference MAE (one-count floor); at least 20 actuals each. Thresholds are illustrative.</p></div></div><div class="panel"><h2>Error evidence by monitoring window</h2><div id="performance-table" class="scroll"></div></div></section>
+<section id="decisions" role="tabpanel" aria-labelledby="tab-decisions" hidden><div class="panel"><h2 id="decision-title"></h2><p id="decision-detail"></p><div class="steps" style="margin-top:22px"><div class="step"><strong>1. Investigate</strong><p>Check missing or late data, workload mix, seasonality and process changes. Confirm actuals are complete.</p></div><div class="step"><strong>2. Train a candidate</strong><p>Use recent, representative, reviewed history and rerun the same feature pipeline. Preserve the current model.</p></div><div class="step"><strong>3. Validate</strong><p>Compare against the current model and simple baseline on later unseen dates, including queue-level results.</p></div><div class="step"><strong>4. Approve & monitor</strong><p>Version the candidate in MLflow, obtain approval, then promote. Retain the prior version for rollback.</p></div></div></div><div class="panel"><h2>SPC review queue · recorded replay only</h2><p>Pending statistical review candidates are separate from model drift warnings. Exercise outcomes do not alter this queue.</p><div id="review-table" class="scroll"></div></div><div class="notice">No automatic retraining, model promotion or notification occurs here. The demonstration shows evidence and a review decision.</div></section>
+<p class="foot" id="source"></p>
+</main><script>
+const D=__DASHBOARD_DATA__;const $=id=>document.getElementById(id);const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const fmt=v=>Number.isFinite(v)?v.toFixed(2):'Unavailable';const date=v=>String(v).slice(0,10);const colors=['#116d88','#d08029','#188b7e'];
+[...new Set(D.performance.map(r=>r.series_id))].sort().forEach(s=>$('series').add(new Option(s,s)));$('series').value='Intake A';
+function table(rows,cols){if(!rows.length)return '<p class="empty">No records in this selection.</p>';return '<table><thead><tr>'+cols.map(c=>'<th>'+esc(c[1])+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+cols.map(c=>'<td>'+esc(c[2]?c[2](r[c[0]]):r[c[0]])+'</td>').join('')+'</tr>').join('')+'</tbody></table>'}
+function line(rows,xfield,fields){const w=650,h=260,l=48,r=18,t=15,b=43;const times=rows.map(r=>Date.parse(r[xfield]));const lo=Math.min(...times),hi=Math.max(...times);const vals=rows.flatMap(r=>fields.map(f=>r[f[0]])).filter(Number.isFinite);const max=Math.max(1,...vals)*1.10;const x=i=>l+(times[i]-lo)/Math.max(1,hi-lo)*(w-l-r);const y=v=>h-b-v/max*(h-t-b);let svg=`<svg class="chart" role="img" aria-label="${fields.map(f=>esc(f[1])).join(', ')} over time" viewBox="0 0 ${w} ${h}">`;for(let i=0;i<=4;i++){let v=max*i/4;svg+=`<line x1="${l}" y1="${y(v)}" x2="${w-r}" y2="${y(v)}" stroke="#e5ebef"/><text x="${l-8}" y="${y(v)+4}" text-anchor="end">${v.toFixed(0)}</text>`}fields.forEach((f,k)=>{const points=rows.map((row,i)=>Number.isFinite(row[f[0]])?`${x(i)},${y(row[f[0]])}`:null);let segment=[];const flush=()=>{if(segment.length)svg+=`<polyline fill="none" stroke="${colors[k]}" stroke-width="2.3" ${k===2?'stroke-dasharray="5 4"':''} points="${segment.join(' ')}"/>`;segment=[]};points.forEach(p=>p?segment.push(p):flush());flush();if(rows.length<10)rows.forEach((row,i)=>{if(Number.isFinite(row[f[0]]))svg+=`<circle cx="${x(i)}" cy="${y(row[f[0]])}" r="4" fill="${colors[k]}"><title>${esc(date(row[xfield]))}: ${esc(f[1])} ${fmt(row[f[0]])}</title></circle>`})});[...new Set([0,Math.floor((rows.length-1)/2),rows.length-1])].forEach(i=>svg+=`<text x="${x(i)}" y="${h-14}" text-anchor="${i===0?'start':i===rows.length-1?'end':'middle'}">${date(rows[i][xfield])}</text>`);return svg+'</svg><div class="legend">'+fields.map((f,k)=>`<span><i class="dot" style="background:${colors[k]}"></i>${esc(f[1])}</span>`).join('')+'</div>'}
+function bars(rows){const max=Math.max(1,...rows.map(r=>r.shift_score||0))*1.15;const left=110,right=550;let out='<svg class="chart" role="img" aria-label="Input distribution changes compared with training" viewBox="0 0 650 260">';rows.forEach((r,i)=>{let y=30+i*65;out+=`<text x="0" y="${y+17}">${esc(r.feature)}</text><rect x="${left}" y="${y}" width="${Math.max(0,(r.shift_score||0)/max*(right-left))}" height="26" rx="3" fill="${r.shift_score>.5?'#d08029':'#116d88'}"/><text x="${left+(r.shift_score||0)/max*(right-left)+8}" y="${y+17}">${fmt(r.shift_score)}</text>`});const tx=left+.5/max*(right-left);out+=`<line x1="${tx}" x2="${tx}" y1="18" y2="216" stroke="#8a623c" stroke-dasharray="4 4"/><text x="${tx}" y="237" text-anchor="middle">0.5 threshold</text></svg>`;return out}
+function render(){const series=$('series').value,scenario=$('scenario').value;const scope=r=>r.series_id===series&&r.scenario===scenario;const perf=D.performance.filter(scope).sort((a,b)=>a.window_number-b.window_number),latest=perf.at(-1),daily=D.daily.filter(scope).sort((a,b)=>a.run_date.localeCompare(b.run_date)),inputs=D.inputs.filter(r=>scope(r)&&r.window_number===latest.window_number);const exercise=scenario!=='Recorded replay';$('period').textContent=date(daily[0].run_date)+' – '+date(daily.at(-1).run_date)+' · '+daily.length+' matched daily records';$('notice').className='notice'+(exercise?' exercise':'');$('notice').textContent=exercise?'Controlled exercise: add 35 counts to outcomes after the reference window. Predictions and inputs stay frozen. These are scenario results.':'Recorded replay: the original fictional counts and saved predictions. An input shift is a reason to investigate; deteriorating accuracy supplies separate evidence.';$('cards').innerHTML=[['Latest error',fmt(latest.mae)+' counts','Reference '+fmt(latest.reference_mae)+' · simple baseline '+fmt(latest.baseline_mae)],['Matched actuals',latest.n_actuals+' / '+latest.expected_actuals,'Latest window · '+date(latest.window_start)+' – '+date(latest.window_end)],['Review status',latest.status,'Two-window rule · no automatic model change']].map((v,i)=>`<div class="card"><div class="label">${v[0]}</div><div class="metric ${i===2?'badge '+(latest.status==='Review for retraining'?'warn':'good'):''}">${esc(v[1])}</div><p class="label">${esc(v[2])}</p></div>`).join('');$('daily-chart').innerHTML=line(daily,'run_date',[['evaluation_actual',exercise?'Exercise outcome':'Actual count'],['predicted_count','Frozen model forecast'],['trailing_mean_baseline','Trailing five-day mean']]);$('error-chart').innerHTML=line(perf,'window_end',[['mae','Model MAE'],['baseline_mae','Simple baseline MAE'],['review_threshold','Review threshold']]);$('input-chart').innerHTML=bars(inputs);$('performance-table').innerHTML=table(perf,[['window_number','Window',v=>v===0?'0 · Reference':v+' · Monitor'],['window_end','Through',date],['n_actuals','Actuals'],['mae','Model MAE',fmt],['baseline_mae','Baseline MAE',fmt],['bias','Bias (actual − forecast)',fmt],['status','Assessment']]);$('decision-title').textContent=latest.status;$('decision-detail').textContent=latest.status==='Review for retraining'?'Two consecutive windows exceeded the demo error threshold. Open a review; verify data and causes before training a candidate.':'This series has not met the two-window retraining-review rule. Continue monitoring and investigate any input or data-quality warnings.';$('review-table').innerHTML=table(D.reviews.filter(r=>r.series_id===series),[['episode_id','Episode'],['run_date','Started',date],['last_signal_date','Latest signal',date],['signal_windows','Flagged windows'],['disposition','Disposition']]);$('source').textContent='Source: notebook Cells 6, 8 and 21 · '+D.dataset+' · Frozen one-day RF, seed 42 · Historical replay, no live data refresh. Bias above zero means underprediction. Not a concept-drift diagnosis.'}
+document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b===button)));['overview','drift','decisions'].forEach(id=>$(id).hidden=id!==button.dataset.tab)}));$('series').addEventListener('change',render);$('scenario').addEventListener('change',render);render();
+</script></body></html>'''.replace("__DASHBOARD_DATA__", json.dumps(dashboard_payload, allow_nan=False).replace("<", "\\u003c"))
+if "displayHTML" in globals():
+    displayHTML(DASHBOARD_HTML)
+else:
+    print("Interactive HTML dashboard prepared in DASHBOARD_HTML; local build script exports the preview.")
+
 
 # COMMAND ----------
 # MAGIC %md

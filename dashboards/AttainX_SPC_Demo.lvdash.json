@@ -1,0 +1,1362 @@
+{
+  "datasets": [
+    {
+      "name": "replay_daily",
+      "displayName": "Replay Daily",
+      "queryLines": [
+        "SELECT series_id, CAST(run_date AS DATE) AS run_date, evaluation_actual, predicted_count, trailing_mean_baseline FROM demo_catalog.demo_schema.demo_drift_daily WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Recorded replay'"
+      ]
+    },
+    {
+      "name": "replay_performance",
+      "displayName": "Replay Performance",
+      "queryLines": [
+        "SELECT series_id, CAST(window_start AS DATE) AS window_start, CAST(window_end AS DATE) AS window_end, window_number, n_actuals, expected_actuals, mae, reference_mae, baseline_mae, bias, review_threshold, status FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Recorded replay'"
+      ]
+    },
+    {
+      "name": "replay_latest",
+      "displayName": "Replay Latest",
+      "queryLines": [
+        "SELECT series_id, n_actuals, mae, reference_mae, baseline_mae, status, window_end FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Recorded replay' AND window_number = 2"
+      ]
+    },
+    {
+      "name": "replay_errors",
+      "displayName": "Replay Errors",
+      "queryLines": [
+        "SELECT series_id, CAST(window_end AS DATE) AS window_end, mae AS error_count, CONCAT(series_id, ' \u00b7 Model MAE') AS measure FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Recorded replay' UNION ALL SELECT series_id, CAST(window_end AS DATE) AS window_end, baseline_mae AS error_count, CONCAT(series_id, ' \u00b7 Simple baseline MAE') AS measure FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Recorded replay' UNION ALL SELECT series_id, CAST(window_end AS DATE) AS window_end, review_threshold AS error_count, CONCAT(series_id, ' \u00b7 Review threshold') AS measure FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Recorded replay'"
+      ]
+    },
+    {
+      "name": "exercise_daily",
+      "displayName": "Exercise Daily",
+      "queryLines": [
+        "SELECT series_id, CAST(run_date AS DATE) AS run_date, evaluation_actual, predicted_count, trailing_mean_baseline FROM demo_catalog.demo_schema.demo_drift_daily WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Performance drift exercise'"
+      ]
+    },
+    {
+      "name": "exercise_performance",
+      "displayName": "Exercise Performance",
+      "queryLines": [
+        "SELECT series_id, CAST(window_start AS DATE) AS window_start, CAST(window_end AS DATE) AS window_end, window_number, n_actuals, expected_actuals, mae, reference_mae, baseline_mae, bias, review_threshold, status FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Performance drift exercise'"
+      ]
+    },
+    {
+      "name": "exercise_latest",
+      "displayName": "Exercise Latest",
+      "queryLines": [
+        "SELECT series_id, n_actuals, mae, reference_mae, baseline_mae, status, window_end FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Performance drift exercise' AND window_number = 2"
+      ]
+    },
+    {
+      "name": "exercise_errors",
+      "displayName": "Exercise Errors",
+      "queryLines": [
+        "SELECT series_id, CAST(window_end AS DATE) AS window_end, mae AS error_count, CONCAT(series_id, ' \u00b7 Model MAE') AS measure FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Performance drift exercise' UNION ALL SELECT series_id, CAST(window_end AS DATE) AS window_end, baseline_mae AS error_count, CONCAT(series_id, ' \u00b7 Simple baseline MAE') AS measure FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Performance drift exercise' UNION ALL SELECT series_id, CAST(window_end AS DATE) AS window_end, review_threshold AS error_count, CONCAT(series_id, ' \u00b7 Review threshold') AS measure FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Performance drift exercise'"
+      ]
+    },
+    {
+      "name": "input_change",
+      "displayName": "Input Change",
+      "queryLines": [
+        "SELECT series_id, feature, shift_score, threshold, reference_n, current_n, missing_rate, status FROM demo_catalog.demo_schema.demo_drift_inputs WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Recorded replay' AND window_number = 2"
+      ]
+    },
+    {
+      "name": "review_queue",
+      "displayName": "Review Queue",
+      "queryLines": [
+        "SELECT series_id, episode_id, CAST(run_date AS DATE) AS run_date, CAST(last_signal_date AS DATE) AS last_signal_date, signal_windows, rule_fired, disposition FROM demo_catalog.demo_schema.review_queue WHERE dataset_id = 'attainx_demo_v2_seed42'"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "filters",
+      "displayName": "Queue",
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "queue_filter",
+            "queries": [
+              {
+                "name": "filter_replay_daily",
+                "query": {
+                  "datasetName": "replay_daily",
+                  "fields": [
+                    {
+                      "name": "series_id",
+                      "expression": "`series_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "filter_replay_performance",
+                "query": {
+                  "datasetName": "replay_performance",
+                  "fields": [
+                    {
+                      "name": "series_id",
+                      "expression": "`series_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "filter_replay_latest",
+                "query": {
+                  "datasetName": "replay_latest",
+                  "fields": [
+                    {
+                      "name": "series_id",
+                      "expression": "`series_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "filter_replay_errors",
+                "query": {
+                  "datasetName": "replay_errors",
+                  "fields": [
+                    {
+                      "name": "series_id",
+                      "expression": "`series_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "filter_exercise_daily",
+                "query": {
+                  "datasetName": "exercise_daily",
+                  "fields": [
+                    {
+                      "name": "series_id",
+                      "expression": "`series_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "filter_exercise_performance",
+                "query": {
+                  "datasetName": "exercise_performance",
+                  "fields": [
+                    {
+                      "name": "series_id",
+                      "expression": "`series_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "filter_exercise_latest",
+                "query": {
+                  "datasetName": "exercise_latest",
+                  "fields": [
+                    {
+                      "name": "series_id",
+                      "expression": "`series_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "filter_exercise_errors",
+                "query": {
+                  "datasetName": "exercise_errors",
+                  "fields": [
+                    {
+                      "name": "series_id",
+                      "expression": "`series_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "filter_input_change",
+                "query": {
+                  "datasetName": "input_change",
+                  "fields": [
+                    {
+                      "name": "series_id",
+                      "expression": "`series_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "filter_review_queue",
+                "query": {
+                  "datasetName": "review_queue",
+                  "fields": [
+                    {
+                      "name": "series_id",
+                      "expression": "`series_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "series_id",
+                    "displayName": "Work queue",
+                    "queryName": "filter_replay_daily"
+                  },
+                  {
+                    "fieldName": "series_id",
+                    "displayName": "Work queue",
+                    "queryName": "filter_replay_performance"
+                  },
+                  {
+                    "fieldName": "series_id",
+                    "displayName": "Work queue",
+                    "queryName": "filter_replay_latest"
+                  },
+                  {
+                    "fieldName": "series_id",
+                    "displayName": "Work queue",
+                    "queryName": "filter_replay_errors"
+                  },
+                  {
+                    "fieldName": "series_id",
+                    "displayName": "Work queue",
+                    "queryName": "filter_exercise_daily"
+                  },
+                  {
+                    "fieldName": "series_id",
+                    "displayName": "Work queue",
+                    "queryName": "filter_exercise_performance"
+                  },
+                  {
+                    "fieldName": "series_id",
+                    "displayName": "Work queue",
+                    "queryName": "filter_exercise_latest"
+                  },
+                  {
+                    "fieldName": "series_id",
+                    "displayName": "Work queue",
+                    "queryName": "filter_exercise_errors"
+                  },
+                  {
+                    "fieldName": "series_id",
+                    "displayName": "Work queue",
+                    "queryName": "filter_input_change"
+                  },
+                  {
+                    "fieldName": "series_id",
+                    "displayName": "Work queue",
+                    "queryName": "filter_review_queue"
+                  }
+                ]
+              },
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "Intake A"
+                      }
+                    ]
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Work queue \u00b7 default Intake A"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 4,
+            "height": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "overview",
+      "displayName": "1 \u00b7 Overview",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "overview_intro",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## SPC and model monitoring\n\nAttainX \u00b7 Fictional data \u00b7 Recorded replay. The forecast is frozen; actual counts arrive afterward. Use the queue filter to focus on one process. No live monitoring is connected."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "replay_latest_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "replay_latest",
+                  "fields": [
+                    {
+                      "name": "series_id",
+                      "expression": "`series_id`"
+                    },
+                    {
+                      "name": "mae",
+                      "expression": "`mae`"
+                    },
+                    {
+                      "name": "reference_mae",
+                      "expression": "`reference_mae`"
+                    },
+                    {
+                      "name": "baseline_mae",
+                      "expression": "`baseline_mae`"
+                    },
+                    {
+                      "name": "n_actuals",
+                      "expression": "`n_actuals`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "series_id",
+                    "displayName": "Queue"
+                  },
+                  {
+                    "fieldName": "mae",
+                    "displayName": "Latest MAE"
+                  },
+                  {
+                    "fieldName": "reference_mae",
+                    "displayName": "Reference MAE"
+                  },
+                  {
+                    "fieldName": "baseline_mae",
+                    "displayName": "Simple baseline MAE"
+                  },
+                  {
+                    "fieldName": "n_actuals",
+                    "displayName": "Matched actuals"
+                  },
+                  {
+                    "fieldName": "status",
+                    "displayName": "Review status"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Latest window \u00b7 error in count units",
+                "showDescription": false,
+                "description": ""
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "replay_trend",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "replay_daily",
+                  "fields": [
+                    {
+                      "name": "run_date",
+                      "expression": "`run_date`"
+                    },
+                    {
+                      "name": "evaluation_actual",
+                      "expression": "SUM(`evaluation_actual`)"
+                    },
+                    {
+                      "name": "predicted_count",
+                      "expression": "SUM(`predicted_count`)"
+                    },
+                    {
+                      "name": "trailing_mean_baseline",
+                      "expression": "SUM(`trailing_mean_baseline`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "run_date",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "fieldName": "evaluation_actual",
+                      "displayName": "Actual / exercise outcome"
+                    },
+                    {
+                      "fieldName": "predicted_count",
+                      "displayName": "Frozen model forecast"
+                    },
+                    {
+                      "fieldName": "trailing_mean_baseline",
+                      "displayName": "Trailing five-day mean"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Daily counts and one-day forecasts",
+                "showDescription": true,
+                "description": "Counts sum across selected queues. The exercise changes outcomes only."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 7,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "workflow",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Counts \u2192 historical features \u2192 rules and forecasts \u2192 review\n\nSPC asks whether the process changed. Input monitoring asks whether model inputs differ from training. Performance monitoring asks whether saved predictions became less accurate after actuals arrived."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 13,
+            "width": 12,
+            "height": 3
+          }
+        }
+      ]
+    },
+    {
+      "name": "drift",
+      "displayName": "2 \u00b7 Detect drift",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "drift_intro",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Two different questions\n\nInput changes prompt investigation. Worsening prediction error supplies separate evidence. Neither alone establishes the cause or proves concept drift."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "input_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "input_change",
+                  "fields": [
+                    {
+                      "name": "feature",
+                      "expression": "`feature`"
+                    },
+                    {
+                      "name": "shift_score",
+                      "expression": "`shift_score`"
+                    },
+                    {
+                      "name": "series_id",
+                      "expression": "`series_id`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "feature",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "shift_score",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "series_id",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Latest input distribution change vs training",
+                "showDescription": true,
+                "description": "Distance in training standard-deviation units. Above 0.5 prompts investigation; illustrative threshold, three numeric features only."
+              },
+              "mark": {
+                "layout": "group"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 12,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "replay_error_chart",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "replay_errors",
+                  "fields": [
+                    {
+                      "name": "window_end",
+                      "expression": "`window_end`"
+                    },
+                    {
+                      "name": "error_count",
+                      "expression": "`error_count`"
+                    },
+                    {
+                      "name": "measure",
+                      "expression": "`measure`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "window_end",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "error_count",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "measure",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Error across three 25-business-day windows",
+                "showDescription": false,
+                "description": ""
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 8,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "drift_rule",
+            "multilineTextboxSpec": {
+              "lines": [
+                "**Performance rule:** The first held-out window is the reference. Review after two consecutive windows exceed 125% of reference MAE (one-count floor), with at least 20 matched actuals each. Calibrate thresholds before operational use. Labels must arrive before accuracy can be assessed."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 14,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "replay_performance_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "replay_performance",
+                  "fields": [
+                    {
+                      "name": "series_id",
+                      "expression": "`series_id`"
+                    },
+                    {
+                      "name": "window_number",
+                      "expression": "`window_number`"
+                    },
+                    {
+                      "name": "window_end",
+                      "expression": "`window_end`"
+                    },
+                    {
+                      "name": "n_actuals",
+                      "expression": "`n_actuals`"
+                    },
+                    {
+                      "name": "mae",
+                      "expression": "`mae`"
+                    },
+                    {
+                      "name": "bias",
+                      "expression": "`bias`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "series_id",
+                    "displayName": "Queue"
+                  },
+                  {
+                    "fieldName": "window_number",
+                    "displayName": "Window: 0 = reference"
+                  },
+                  {
+                    "fieldName": "window_end",
+                    "displayName": "Through"
+                  },
+                  {
+                    "fieldName": "n_actuals",
+                    "displayName": "Actuals"
+                  },
+                  {
+                    "fieldName": "mae",
+                    "displayName": "Model MAE"
+                  },
+                  {
+                    "fieldName": "bias",
+                    "displayName": "Bias: actual \u2212 forecast"
+                  },
+                  {
+                    "fieldName": "status",
+                    "displayName": "Assessment"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Window evidence",
+                "showDescription": false,
+                "description": ""
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 17,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "input_detail",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "input_change",
+                  "fields": [
+                    {
+                      "name": "series_id",
+                      "expression": "`series_id`"
+                    },
+                    {
+                      "name": "feature",
+                      "expression": "`feature`"
+                    },
+                    {
+                      "name": "reference_n",
+                      "expression": "`reference_n`"
+                    },
+                    {
+                      "name": "current_n",
+                      "expression": "`current_n`"
+                    },
+                    {
+                      "name": "missing_rate",
+                      "expression": "`missing_rate`"
+                    },
+                    {
+                      "name": "shift_score",
+                      "expression": "`shift_score`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "series_id",
+                    "displayName": "Queue"
+                  },
+                  {
+                    "fieldName": "feature",
+                    "displayName": "Input"
+                  },
+                  {
+                    "fieldName": "reference_n",
+                    "displayName": "Training rows"
+                  },
+                  {
+                    "fieldName": "current_n",
+                    "displayName": "Current rows"
+                  },
+                  {
+                    "fieldName": "missing_rate",
+                    "displayName": "Missing fraction"
+                  },
+                  {
+                    "fieldName": "shift_score",
+                    "displayName": "Shift distance"
+                  },
+                  {
+                    "fieldName": "status",
+                    "displayName": "Assessment"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Input coverage and diagnostic evidence",
+                "showDescription": false,
+                "description": ""
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 23,
+            "width": 12,
+            "height": 6
+          }
+        }
+      ]
+    },
+    {
+      "name": "exercise",
+      "displayName": "3 \u00b7 Drift exercise",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "exercise_intro",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Controlled performance drift exercise\n\nAdd 35 counts to outcomes in the last two windows. Inputs, model and saved predictions remain unchanged. These scenario results are separate from the recorded replay; no model is retrained."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "exercise_latest_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "exercise_latest",
+                  "fields": [
+                    {
+                      "name": "series_id",
+                      "expression": "`series_id`"
+                    },
+                    {
+                      "name": "mae",
+                      "expression": "`mae`"
+                    },
+                    {
+                      "name": "reference_mae",
+                      "expression": "`reference_mae`"
+                    },
+                    {
+                      "name": "baseline_mae",
+                      "expression": "`baseline_mae`"
+                    },
+                    {
+                      "name": "n_actuals",
+                      "expression": "`n_actuals`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "series_id",
+                    "displayName": "Queue"
+                  },
+                  {
+                    "fieldName": "mae",
+                    "displayName": "Latest MAE"
+                  },
+                  {
+                    "fieldName": "reference_mae",
+                    "displayName": "Reference MAE"
+                  },
+                  {
+                    "fieldName": "baseline_mae",
+                    "displayName": "Simple baseline MAE"
+                  },
+                  {
+                    "fieldName": "n_actuals",
+                    "displayName": "Matched actuals"
+                  },
+                  {
+                    "fieldName": "status",
+                    "displayName": "Review status"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Latest exercise window",
+                "showDescription": false,
+                "description": ""
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "exercise_error_chart",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "exercise_errors",
+                  "fields": [
+                    {
+                      "name": "window_end",
+                      "expression": "`window_end`"
+                    },
+                    {
+                      "name": "error_count",
+                      "expression": "`error_count`"
+                    },
+                    {
+                      "name": "measure",
+                      "expression": "`measure`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "window_end",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "error_count",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "measure",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Watch one worse window \u2192 review after two",
+                "showDescription": false,
+                "description": ""
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 7,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "exercise_performance_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "exercise_performance",
+                  "fields": [
+                    {
+                      "name": "series_id",
+                      "expression": "`series_id`"
+                    },
+                    {
+                      "name": "window_number",
+                      "expression": "`window_number`"
+                    },
+                    {
+                      "name": "window_end",
+                      "expression": "`window_end`"
+                    },
+                    {
+                      "name": "n_actuals",
+                      "expression": "`n_actuals`"
+                    },
+                    {
+                      "name": "mae",
+                      "expression": "`mae`"
+                    },
+                    {
+                      "name": "bias",
+                      "expression": "`bias`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "series_id",
+                    "displayName": "Queue"
+                  },
+                  {
+                    "fieldName": "window_number",
+                    "displayName": "Window: 0 = reference"
+                  },
+                  {
+                    "fieldName": "window_end",
+                    "displayName": "Through"
+                  },
+                  {
+                    "fieldName": "n_actuals",
+                    "displayName": "Actuals"
+                  },
+                  {
+                    "fieldName": "mae",
+                    "displayName": "Model MAE"
+                  },
+                  {
+                    "fieldName": "bias",
+                    "displayName": "Bias: actual \u2212 forecast"
+                  },
+                  {
+                    "fieldName": "status",
+                    "displayName": "Assessment"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Exercise decision evidence",
+                "showDescription": false,
+                "description": ""
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 13,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "exercise_trend",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "exercise_daily",
+                  "fields": [
+                    {
+                      "name": "run_date",
+                      "expression": "`run_date`"
+                    },
+                    {
+                      "name": "evaluation_actual",
+                      "expression": "SUM(`evaluation_actual`)"
+                    },
+                    {
+                      "name": "predicted_count",
+                      "expression": "SUM(`predicted_count`)"
+                    },
+                    {
+                      "name": "trailing_mean_baseline",
+                      "expression": "SUM(`trailing_mean_baseline`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "run_date",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "fieldName": "evaluation_actual",
+                      "displayName": "Actual / exercise outcome"
+                    },
+                    {
+                      "fieldName": "predicted_count",
+                      "displayName": "Frozen model forecast"
+                    },
+                    {
+                      "fieldName": "trailing_mean_baseline",
+                      "displayName": "Trailing five-day mean"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Daily counts and one-day forecasts",
+                "showDescription": true,
+                "description": "Counts sum across selected queues. The exercise changes outcomes only."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 19,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "exercise_lesson",
+            "multilineTextboxSpec": {
+              "lines": [
+                "**What this shows:** Input monitoring cannot catch every performance failure. Join actual outcomes to saved predictions as they become available. A warning opens a review; it does not automatically replace a model."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 25,
+            "width": 12,
+            "height": 3
+          }
+        }
+      ]
+    },
+    {
+      "name": "decisions",
+      "displayName": "4 \u00b7 Review and retrain",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "decision_intro",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Investigate \u2192 train a candidate \u2192 validate \u2192 approve\n\n1. Check missing or late data, workload mix, seasonality and process changes.\n2. Train a candidate on recent representative history; preserve the current model.\n3. Evaluate on later unseen dates against both the current model and a simple baseline, by queue.\n4. Log data, code, parameters and metrics in MLflow. Obtain approval, promote the version, monitor and retain rollback."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "pending_reviews",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "review_queue",
+                  "fields": [
+                    {
+                      "name": "series_id",
+                      "expression": "`series_id`"
+                    },
+                    {
+                      "name": "episode_id",
+                      "expression": "`episode_id`"
+                    },
+                    {
+                      "name": "last_signal_date",
+                      "expression": "`last_signal_date`"
+                    },
+                    {
+                      "name": "signal_windows",
+                      "expression": "`signal_windows`"
+                    },
+                    {
+                      "name": "rule_fired",
+                      "expression": "`rule_fired`"
+                    },
+                    {
+                      "name": "disposition",
+                      "expression": "`disposition`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "series_id",
+                    "displayName": "Queue"
+                  },
+                  {
+                    "fieldName": "episode_id",
+                    "displayName": "Episode"
+                  },
+                  {
+                    "fieldName": "last_signal_date",
+                    "displayName": "Latest signal"
+                  },
+                  {
+                    "fieldName": "signal_windows",
+                    "displayName": "Flagged windows"
+                  },
+                  {
+                    "fieldName": "rule_fired",
+                    "displayName": "Rules"
+                  },
+                  {
+                    "fieldName": "disposition",
+                    "displayName": "Disposition"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "SPC review candidates \u00b7 recorded replay only",
+                "showDescription": false,
+                "description": ""
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 6,
+            "width": 12,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "decision_boundary",
+            "multilineTextboxSpec": {
+              "lines": [
+                "**Keep the decisions separate:** SPC candidates are process investigations. Drift warnings concern model usefulness. The exercise never changes the SPC queue. No notification, automatic retraining or promotion occurs here.\n\n**Refresh:** This dashboard reads saved notebook results. Run all retrains the demo; production monitoring would reuse a registered model and join new actuals independently."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 13,
+            "width": 12,
+            "height": 4
+          }
+        }
+      ]
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "canvasBackgroundColor": {
+        "light": "#F2F5F7",
+        "dark": "#13232E"
+      },
+      "widgetBackgroundColor": {
+        "light": "#FFFFFF",
+        "dark": "#192F3D"
+      },
+      "fontColor": {
+        "light": "#132F42",
+        "dark": "#E5EDF1"
+      },
+      "selectionColor": {
+        "light": "#116D88",
+        "dark": "#6FCDDF"
+      },
+      "visualizationColors": [
+        "#116D88",
+        "#D08029",
+        "#188B7E",
+        "#7C75A2",
+        "#587992"
+      ],
+      "widgetHeaderAlignment": "LEFT"
+    }
+  }
+}
