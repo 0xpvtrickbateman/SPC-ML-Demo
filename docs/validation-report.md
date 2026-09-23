@@ -42,6 +42,7 @@ The independent reviewer reproduced and closed earlier missing-actual counting a
 | `tests/mlflow_contract_test.py` | Passed simulated MLflow 2.x/3.x API contracts; this is compatibility evidence only. |
 | `tests/mlflow_reuse_integration_test.py` | Passed real MLflow 3.16.1 local logging using the notebook's actual logging cell, then returned-URI loading in a fresh process with fitting forbidden. Isolated environment; no workspace or registry acceptance implied. |
 | `tests/delta_contract_test.py` | Passed 19 simulated keyed MERGE contracts. Drift-table contracts cover the other three. Real Spark execution remains pending. |
+| `tests/drift_input_evidence_test.py` | Passed actual drift evidence row construction for NaN and both infinities, 19/20 finite-row boundaries, contaminated reference/current inputs, clean inputs and empty groups. Counts and invalid or missing rates match score eligibility. |
 | `tests/dashboard_test.py` | Passed all ten native queries and eleven SQL examples against local DuckDB tables, drift arithmetic, scenario isolation, dataset bindings, filter coverage and layout structure. |
 | `tests/setup_helper_test.mjs` | Passed default/custom schema binding and invalid-identifier handling. |
 | Browser preview | Overview, drift and review pages inspected visually; controlled-exercise activation and queue filtering verified. Setup helper shows the exact requested schema. This is the local companion, not the native dashboard. |
@@ -49,7 +50,7 @@ The independent reviewer reproduced and closed earlier missing-actual counting a
 | Content exclusion | Current shared text files and PowerPoint XML/notes/metadata scanned; no private source context found. Rendered slides also reviewed. This is not a historical Git audit. |
 | Repository hygiene | Whitespace checks passed. Temporary environments and saved model artifacts are excluded from Git. |
 
-Validated main notebook SHA-256: `a52ee04f3a144f3c0429175890a3eaac3c4bde7cff6988c181b60077e7f3cbc4`.
+Validated main notebook SHA-256 after the finite input-evidence correction: `2bd768ed9abd1b11d0c5ab24752e1d2710fc282ca6b2be5b8aef2e8a9f1b5936`. Full local smoke, focused drift evidence, dashboard integration and setup-helper checks were rerun for this correction; the other receipts above describe the preceding presentation validation.
 
 Validated deck SHA-256: `820a615f8ad260eaf07760013727807a99e9bf34555000bd3670ae4770fcbb62`.
 

@@ -24,7 +24,7 @@ If you choose another authorized schema, update the notebook setting and both he
 | View | Question | Evidence |
 | --- | --- | --- |
 | Overview | Are forecasts useful? | Synthetic application-volume story; 1,179,830 events aggregated to 1,260 daily observations; actuals, saved one-day predictions, simple baseline, latest MAE, coverage and model identity |
-| Detect drift | What changed? | Three input distributions versus training; prediction error over three separate 25-business-day windows; comparison dates, missingness and sample counts |
+| Detect drift | What changed? | Three input distributions versus training; prediction error over three separate 25-business-day windows; comparison dates, invalid or missing rates and finite sample counts |
 | Drift exercise | Can the warning fire? | Separate +350-application outcome scenario with frozen predictions; a one-window watch followed by a two-window review |
 | Review and retrain | What happens next? | Investigate data and process changes; train a candidate; validate on later dates; obtain human approval; retain rollback; inspect the separate SPC queue |
 
@@ -34,7 +34,7 @@ The native dashboard and companion both have four content views. The companion a
 
 ## Definitions and boundaries
 
-Input change is Wasserstein distance divided by training standard deviation for `last_value`, `window_std` and `trend`. Scores above 0.5 prompt investigation. Fewer than 20 finite samples or insufficient reference variation produce unavailable evidence. This illustrative diagnostic is not a significance test or proof of concept drift.
+Input change is Wasserstein distance divided by training standard deviation for `last_value`, `window_std` and `trend`. Scores above 0.5 prompt investigation. Fewer than 20 finite samples or insufficient reference variation produce unavailable evidence. The evidence counts include only finite values. The existing `missing_rate` column is displayed as **Invalid or missing rate**: the fraction of current input rows containing NaN, positive infinity or negative infinity (unavailable for an empty input window). These same finite masks determine the score and its sample eligibility. This illustrative diagnostic is not a significance test or proof of concept drift.
 
 Performance monitoring uses a frozen one-day random forest and 75 held-out dates split into three 25-day windows. Window 0 establishes each queue’s reference MAE. Two consecutive monitoring windows above `1.25 × max(reference MAE, 1 count)`, with at least 20 matched actuals in each window and reference, trigger **Review for retraining**. Insufficient actuals are not evidence of healthy performance. Bias is **forecast − actual**, so positive bias means **overprediction**.
 
@@ -49,6 +49,7 @@ From the repository root:
 ```bash
 .venv/bin/python scripts/build_dashboard.py --preview
 .venv/bin/python -m pip install duckdb==1.4.4
+.venv/bin/python tests/drift_input_evidence_test.py
 .venv/bin/python tests/dashboard_test.py
 node tests/setup_helper_test.mjs
 ```
