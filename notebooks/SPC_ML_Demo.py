@@ -1249,16 +1249,21 @@ for series_id, result_group in forecast_results_df.groupby("series_id"):
             drift_daily_parts.append(current)
             current_inputs = forecast_df[forecast_df.series_id.eq(series_id) & forecast_df.run_date.isin(window_dates)]
             for feature in DRIFT_FEATURES:
-                score = input_shift_score(reference_inputs[feature], current_inputs[feature])
+                reference_values = reference_inputs[feature].to_numpy(dtype=float)
+                current_values = current_inputs[feature].to_numpy(dtype=float)
+                reference_finite = np.isfinite(reference_values)
+                current_finite = np.isfinite(current_values)
+                score = input_shift_score(reference_values[reference_finite], current_values[current_finite])
                 drift_input_rows.append({
                     "dataset_id": DATASET_ID, "series_id": series_id, "scenario": scenario,
                     "window_number": window_number, "window_end": pd.Timestamp(window_dates[-1]),
                     "feature": feature, "shift_score": score, "threshold": DRIFT_INPUT_THRESHOLD,
                     "reference_start": reference_inputs.run_date.min(), "reference_end": reference_inputs.run_date.max(),
                     "window_start": pd.Timestamp(window_dates[0]),
-                    "reference_n": int(reference_inputs[feature].notna().sum()),
-                    "current_n": int(current_inputs[feature].notna().sum()),
-                    "missing_rate": float(current_inputs[feature].isna().mean()),
+                    "reference_n": int(reference_finite.sum()),
+                    "current_n": int(current_finite.sum()),
+                    # Keep the persisted field name; invalid includes NaN and both infinities.
+                    "missing_rate": float((~current_finite).mean()) if len(current_finite) else np.nan,
                     "status": "Insufficient variation or data" if not np.isfinite(score) else
                               ("Investigate input change" if score > DRIFT_INPUT_THRESHOLD else "Within demo tolerance"),
                 })

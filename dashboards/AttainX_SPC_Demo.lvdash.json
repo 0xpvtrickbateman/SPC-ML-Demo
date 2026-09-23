@@ -986,15 +986,15 @@
                   },
                   {
                     "fieldName": "reference_n",
-                    "displayName": "Training rows"
+                    "displayName": "Finite training rows"
                   },
                   {
                     "fieldName": "current_n",
-                    "displayName": "Current rows"
+                    "displayName": "Finite current rows"
                   },
                   {
                     "fieldName": "missing_rate",
-                    "displayName": "Missing fraction"
+                    "displayName": "Invalid or missing rate"
                   },
                   {
                     "fieldName": "shift_score",
