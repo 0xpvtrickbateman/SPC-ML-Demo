@@ -19,6 +19,14 @@ An AttainX demonstration using fictional daily counts. The Databricks notebook c
 | 16–18 | Forecast history and retraining safeguards, candidate/rollback exercise, daily notice replay and review dashboard |
 | 19–20 | Four optional MLflow model artifacts, demo registry aliases/tags, 19 optional Delta tables with keyed MERGE |
 
+## Show the dataframe transformations
+
+Cells 2–10 now display eleven bounded previews of actual intermediate dataframes. They follow `Intake A` across the same five dates, show full row/column counts, and explain the operation and what each row represents.
+
+Start with `daily_df`, summarize history into `window_features_df`, then join four rule-label columns to create `signals_df`. From there, show the separate classifier and count-forecast branches. Cell 8 pairs daily episode members with their grouped review row; Cell 9 joins severity; Cell 10 pairs parent counts with their office rows. Cells 3 and 7 define functions or plot existing results rather than adding analytical columns.
+
+The tables are presentation copies: rounding and filtering affect only the previews. Full results and model inputs retain their original precision. `dataframe_stages` also keeps the displayed previews for inspection.
+
 ## Local results
 
 September 23, 2026, seed 42 and `requirements-demo-lock.txt`:

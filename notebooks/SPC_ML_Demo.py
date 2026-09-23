@@ -13,6 +13,8 @@
 # MAGIC subgroup analysis; fixture lineage and investigation; historical assessment; lifecycle exercises;
 # MAGIC a daily replay dashboard; and optional MLflow and Delta integration.
 # MAGIC
+# MAGIC **Dataframe walkthrough:** Cells 2–10 show compact views of Intake A across the same five dates. Headers explain added columns, filters, joins and changes in what a row represents. Classifier, forecast, review and subgroup results are branches of the source data, not one long chain.
+# MAGIC
 # MAGIC **Run all 20 code cells.** Install `requirements-demo-lock.txt` in the notebook environment first.
 # MAGIC The lineage, operational events and reviewer actions are fictional fixtures. No notifications are sent.
 # MAGIC
@@ -66,6 +68,30 @@ UC_MODEL_NAME = ""
 
 plt.rcParams.update({"figure.figsize": (11, 4), "axes.grid": True, "grid.alpha": 0.2})
 
+# Small views of actual intermediate results keep the same queue and dates visible.
+DEMO_SERIES = "Intake A"
+DATAFRAME_PREVIEW_ROWS = 5
+dataframe_stages = {}
+
+def show_dataframe_stage(title, frame, columns, *, grain, change, sample=None):
+    """Display a bounded copy; leave the calculation's full dataframe unchanged."""
+    selected = frame if sample is None else sample
+    if sample is None:
+        if "series_id" in selected:
+            selected = selected[selected.series_id == DEMO_SERIES]
+        if "run_date" in selected:
+            selected = selected[selected.run_date.isin(DEMO_PREVIEW_DATES)]
+            selected = selected.sort_values("run_date")
+        selected = selected.head(DATAFRAME_PREVIEW_ROWS)
+    preview = selected.loc[:, columns].copy().reset_index(drop=True)
+    dataframe_stages[title] = preview
+    print(f"\n{title} | {DEMO_SERIES}")
+    print(f"Full dataframe: {len(frame):,} rows x {len(frame.columns)} columns. Row meaning: {grain}.")
+    print(change)
+    print(f"Preview: {len(preview)} rows; rounded for display only.")
+    display(preview.round(3)) if "display" in globals() else print(preview.round(3).to_string(index=False))
+
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -100,7 +126,12 @@ daily_df["dataset_id"] = DATASET_ID
 assert daily_df.groupby(["series_id", "run_date"]).size().max() == 1
 assert daily_df["daily_count"].notna().all() and daily_df["daily_count"].ge(0).all()
 print(f"Created {len(daily_df):,} fictitious daily observations across {len(series_config)} series.")
-display(daily_df.head()) if "display" in globals() else print(daily_df.head().to_string(index=False))
+DEMO_PREVIEW_DATES = daily_df.loc[daily_df.series_id == DEMO_SERIES, "run_date"].sort_values().tail(DATAFRAME_PREVIEW_ROWS)
+show_dataframe_stage(
+    "1. Starting counts — daily_df", daily_df, ["series_id", "run_date", "daily_count"],
+    grain="one queue on one business date",
+    change="START: date and observed count. These same five run dates anchor the later previews.",
+)
 
 # COMMAND ----------
 
@@ -108,6 +139,7 @@ display(daily_df.head()) if "display" in globals() else print(daily_df.head().to
 # MAGIC ### Cell 3: Define the three SPC checks
 # MAGIC **Plain English:** XmR notices unusually large individual values; CUSUM adds small departures from a past average; EWMA smooths recent values to reveal a shift.
 # MAGIC **Technique:** XmR uses the average moving range for limits. CUSUM accumulates deviations. EWMA gives newer observations more weight.
+# MAGIC **Dataframe walkthrough:** This cell defines functions; it does not transform rows yet. Cell 4 applies them.
 # MAGIC **Output:** Three functions return a yes/no rule signal; XmR also returns the center, limits, and moving range for the chart.
 # MAGIC **Developer note:** Each function scans the **whole preceding window**. A flag can stay true across several later runs after one event.
 
@@ -152,7 +184,7 @@ def ewma_signal(window, baseline_mean, baseline_sigma):
 # MAGIC ### Cell 4: Turn past counts into signals and features
 # MAGIC **Plain English:** For each date, inspect the prior 25 business days. XmR derives limits from that window; CUSUM and EWMA use an earlier 90-day reference period. Save which SPC check fired.
 # MAGIC **Technique:** Rolling-window feature engineering produces means, variation, recent trend, and distance from the baseline. `signal_detected` is `xmr_signal OR cusum_signal OR ewma_signal`.
-# MAGIC **Output:** `signals_df` contains the rule flags and measurements used later by the models.
+# MAGIC **Output:** `window_features_df` holds the measurements; joining four rule-label columns creates `signals_df`, which feeds the later models.
 # MAGIC **Developer note:** The features and rule label describe the **same past window**. The classifier below imitates these rules; it is not advance warning.
 
 # COMMAND ----------
@@ -190,11 +222,28 @@ for series_id, group in daily_df.groupby("series_id", sort=True):
             "source_name": "fictional_operational_feed", "dataset_id": DATASET_ID,
         })
 
-signals_df = pd.DataFrame(rows).sort_values(["run_date", "series_id"]).reset_index(drop=True)
+rule_columns = ["xmr_signal", "cusum_signal", "ewma_signal", "signal_detected"]
+window_features_df = pd.DataFrame(rows).drop(columns=rule_columns).sort_values(["run_date", "series_id"]).reset_index(drop=True)
+signals_df = window_features_df.merge(
+    pd.DataFrame(rows)[["series_id", "run_date"] + rule_columns],
+    on=["series_id", "run_date"], validate="one_to_one",
+)
 assert len(signals_df) > 100 and signals_df["signal_detected"].nunique() == 2
 assert (signals_df["signal_detected"] == signals_df[["xmr_signal", "cusum_signal", "ewma_signal"]].any(axis=1)).all()
 print(f"{len(signals_df):,} labeled windows; rule signal rate: {signals_df['signal_detected'].mean():.1%}")
 print(signals_df[["xmr_signal", "cusum_signal", "ewma_signal"]].mean().map(lambda v: f"{v:.1%}").to_string())
+show_dataframe_stage(
+    "2. Historical measurements — window_features_df", window_features_df,
+    ["run_date", "window_start", "window_end", "last_value", "window_mean", "window_std", "last_5_mean"],
+    grain="one queue's preceding 25-day window, evaluated on run_date",
+    change="TRANSFORM: summarize history; add window dates, mean, variation and recent average. The first 115 dates per queue need more history. last_value is from window_end, not run_date.",
+)
+show_dataframe_stage(
+    "3. Rule flags added — signals_df", signals_df,
+    ["run_date", "window_mean", "ucl", "lcl", "xmr_signal", "cusum_signal", "ewma_signal", "signal_detected"],
+    grain="the same completed historical window",
+    change="ADD four label columns to window_features_df: three rule flags and their logical OR, signal_detected. Control limits were calculated with the historical measurements; the counts are unchanged.",
+)
 
 # COMMAND ----------
 
@@ -258,6 +307,12 @@ predictions_df = test_df[["series_id", "run_date", "signal_detected", "xmr_signa
 predictions_df["model_signal"] = pred.astype(bool)
 predictions_df["model_probability"] = prob
 predictions_df["dataset_id"] = DATASET_ID
+show_dataframe_stage(
+    "4. Classifier results added — predictions_df", predictions_df,
+    ["run_date", "signal_detected", "model_signal", "model_probability"],
+    grain="one held-out historical window",
+    change="FILTER to later test dates; ADD model_signal and model_probability beside the known rule label. This branch classifies the past window.",
+)
 
 # COMMAND ----------
 
@@ -302,6 +357,18 @@ forecast_results_df = forecast_df.loc[forecast_test, ["series_id", "run_date", "
 forecast_results_df["predicted_count"] = forecast_values
 forecast_results_df["trailing_mean_baseline"] = forecast_df.loc[forecast_test, "last_5_mean"].to_numpy()
 forecast_results_df["absolute_error"] = np.abs(forecast_actual - forecast_values)
+show_dataframe_stage(
+    "5. Forecast inputs joined — forecast_df", forecast_df,
+    ["run_date", "window_end", "last_value", "last_5_mean", "weekday", "daily_count"],
+    grain="one queue and target business date",
+    change="SEPARATE BRANCH: join signals_df to daily_df on series_id + run_date; add weekday. daily_count is the later observed target, never a model input.",
+)
+show_dataframe_stage(
+    "6. Forecast results added — forecast_results_df", forecast_results_df,
+    ["run_date", "daily_count", "predicted_count", "trailing_mean_baseline", "absolute_error"],
+    grain="one held-out forecast target date",
+    change="FILTER to forecast test dates; ADD predicted count, simple baseline and absolute error. No classifier prediction is used by this model.",
+)
 print("Next-business-day count forecast: held-out later dates, with a 25-day gap")
 print(pd.Series(forecast_metrics).round(2).to_string())
 if forecast_metrics["forecast_mae"] >= forecast_metrics["trailing_mean_baseline_mae"]:
@@ -316,6 +383,7 @@ else:
 # MAGIC **Plain English:** The first chart shows recent counts and XmR limits. The second shows which rule labels the classifier matched or missed. The third compares the forecast with later observed counts.
 # MAGIC **Technique:** Matplotlib draws the time series; a confusion matrix displays true and false classifier calls on the held-out dates.
 # MAGIC **Read carefully:** A circle means **any** rule fired somewhere in the past 25-day window. The point under the circle does not have to cross the displayed XmR limit.
+# MAGIC **Dataframe walkthrough:** This cell plots existing results. It adds no analytical columns.
 # MAGIC **Developer note:** These charts support explanation; review actual rows and rule flags before interpreting a cause.
 
 # COMMAND ----------
@@ -407,6 +475,21 @@ monitoring_df = pd.DataFrame([{
 }])
 print("Consolidated review episodes (15 latest signal dates; no automatic action):")
 display(review_df) if "display" in globals() else print(review_df.tail(5).to_string(index=False))
+# Show one real review episode and the daily signal rows that formed it.
+example_episode = review_df[review_df.series_id == DEMO_SERIES].tail(1)
+episode_members = episode_rows.merge(example_episode[["series_id", "episode_id"]], on=["series_id", "episode_id"], validate="many_to_one").sort_values("run_date")
+show_dataframe_stage(
+    "7a. Before grouping — episode_rows", episode_rows,
+    ["run_date", "signal_detected", "episode_id"], sample=episode_members.tail(DATAFRAME_PREVIEW_ROWS),
+    grain="one flagged daily window",
+    change=f"FILTER: one example episode has {len(episode_members)} contributing daily windows; show its final five. These rows will become one review row.",
+)
+show_dataframe_stage(
+    "7b. After grouping — review_df", review_df,
+    ["episode_id", "run_date", "last_signal_date", "signal_windows", "rule_fired", "disposition"], sample=example_episode,
+    grain="one consecutive episode of flagged windows",
+    change="GROUP BY series_id + episode_id; summarize dates and window count, collect rules, then add a pending disposition. This is a change in row meaning, not a one-to-one join.",
+)
 print("Monitoring snapshot:")
 display(monitoring_df) if "display" in globals() else print(monitoring_df.to_string(index=False))
 
@@ -447,6 +530,15 @@ zone_df = pd.DataFrame(zone_rows)
 series_profile_df = daily_df.groupby("series_id").daily_count.agg(["count", "mean", "std", "min", "max"]).reset_index()
 print(series_profile_df.round(2).to_string(index=False))
 print(zone_df.zone_severity.value_counts().to_string())
+severity_view_df = signals_df[["series_id", "run_date", "signal_detected"]].merge(
+    zone_df, on=["series_id", "run_date"], validate="one_to_one",
+)
+show_dataframe_stage(
+    "8. Severity joined — severity_view_df", severity_view_df,
+    ["run_date", "signal_detected", "zone_severity", "zone_reason"],
+    grain="one completed historical window",
+    change="JOIN a separate zone-check result onto the rule flag using series_id + run_date. Add severity and its reason; the original rule label stays unchanged.",
+)
 pivot_counts = daily_df.pivot(index="run_date", columns="series_id", values="daily_count")
 fig, axes = plt.subplots(1, 2, figsize=(12, 4))
 for sid in pivot_counts:
@@ -499,6 +591,19 @@ dimension_profile_df["use_for_modeling"] = [True, False]
 print(dimension_profile_df.to_string(index=False))
 print("Channel is redundant with office in this fixture; retain office for analysis.")
 print(subgroup_df[subgroup_df.subgroup_anomaly].tail(8).to_string(index=False))
+subgroup_preview = subgroup_df[(subgroup_df.series_id == DEMO_SERIES) & subgroup_df.run_date.isin(DEMO_PREVIEW_DATES.tail(3))].sort_values(["run_date", "office"])
+show_dataframe_stage(
+    "9a. Parent counts before split — daily_df", daily_df,
+    ["run_date", "daily_count"],
+    sample=daily_df[(daily_df.series_id == DEMO_SERIES) & daily_df.run_date.isin(DEMO_PREVIEW_DATES.tail(3))].sort_values("run_date"),
+    grain="one queue on one date", change="BEFORE: three of the same source dates, one total count per date.",
+)
+show_dataframe_stage(
+    "9b. Office rows after split — subgroup_df", subgroup_df,
+    ["run_date", "office", "daily_count", "workload_share", "prior_mean", "zscore", "subgroup_anomaly"], sample=subgroup_preview,
+    grain="one office within a queue on one date",
+    change="EXPAND each parent into North and South rows; ADD workload share, prior mean, z-score and anomaly flag. The two office counts sum exactly to the parent count on each date.",
+)
 fig, ax = plt.subplots(figsize=(11, 4))
 for office, group in subgroup_df[subgroup_df.series_id == "Intake A"].groupby("office"):
     ax.plot(group.run_date.tail(90), group.workload_share.tail(90), label=office)

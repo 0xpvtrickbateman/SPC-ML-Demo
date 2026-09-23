@@ -90,3 +90,11 @@ Do not invent a historical engagement for question 12. The current classifier de
 
 Close: The expanded demo now represents the major reference workflow areas. The remaining differences are depth, exact agency algorithms and live integrations. Do not claim identical results, complete production parity or verified operational benefit.
 
+
+## Optional dataframe walkthrough in Cells 2–10
+
+Use the tables directly in the notebook: “Here are the original counts. We summarize the previous 25 business days, then add the rule flags. From those measurements we branch into classification and forecasting. We also group repeated flags for review and examine office-level detail.”
+
+Follow the same Intake A dates through Cells 2, 4, 5, 6 and 9. Explain that `last_value` belongs to `window_end`, while the observed `daily_count` belongs to `run_date`. Cell 8 explicitly switches to one review episode and its contributing daily rows. Cell 10 shows three parent dates expanding to six office rows whose counts reconcile. A row does not mean the same thing after grouping or splitting.
+
+The earlier slide-by-slide notes still apply; these tables provide an additional live explanation within the existing 20 cells.
