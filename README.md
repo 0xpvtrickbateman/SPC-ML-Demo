@@ -1,70 +1,63 @@
 # SPC ML Demo
 
-An AttainX demonstration of statistical process control and machine learning using **entirely synthetic data**. The notebook is the runnable product. It does not access USCIS data, services, tables, or model artifacts.
+An AttainX demonstration using fictional daily counts. The Databricks notebook contains **20 executable cells and ten figures**, with plain-English explanations immediately above each code cell. It accesses no USCIS data or services.
 
-See [reference-to-demo mapping](docs/reference-mapping.md) for the specific reference ideas represented here and the capabilities intentionally left out.
-The [presenter deck](docs/SPC_ML_Demo_Walkthrough_Ready.pptx) explains SPC, every executable notebook cell, the distinct ML tasks, the observed synthetic results, and the oral-question coverage. Its speaker notes provide a plain-English talk track.
-Use the [presentation runbook](docs/presentation-runbook.md) for the exact rehearsal order, execution receipt, and remaining oral evidence gaps.
+- [Notebook](notebooks/SPC_ML_Demo.py)
+- [22-slide presenter deck with speaker notes](docs/SPC_ML_Demo_Walkthrough_Ready.pptx)
+- [Talking points](docs/talking-points.md) and [rehearsal runbook](docs/presentation-runbook.md)
+- [Reference coverage and remaining differences](docs/reference-mapping.md)
 
-## Five-minute setup in Databricks
+## Demonstrated workflow
 
-1. In **Workspace**, open the Git folder for this repository, then open `notebooks/SPC_ML_Demo.py` as a notebook. If Git folders are not ready, import that file through **Workspace → Import**.
-2. Choose available Python compute and run **Run all**. The default settings require no Unity Catalog destination, secret, external file, GPU, or model serving endpoint. MLflow, when installed, still writes to an experiment and needs access there. This revision passed a local top-to-bottom check; verify it in your own Databricks workspace before the oral presentation.
-3. Inspect the three figures, printed held-out metrics, and pending analyst review queue. Check the MLflow run ID and both logged model URIs if MLflow is available. Each code cell has a short explanatory markdown cell directly above it. Allow a few minutes for compute startup.
-4. If you have a writable Unity Catalog catalog and schema, set `OUTPUT_SCHEMA = "catalog.schema"` near the top and rerun to create six managed Delta tables. Leave it empty if permissions or managed storage are not yet ready.
-5. If a Unity Catalog model registry is ready, set `UC_MODEL_NAME = "catalog.schema.spc_rule_classifier"` and rerun. Registration is optional. Do not point this demo at production objects.
+| Cells | Capability |
+| --- | --- |
+| 1–4 | Reproducible counts, federal-holiday calendar, XmR/CUSUM/EWMA, historical labels and features |
+| 5–8 | Rule classifier, separate one-day count forecast, charts, grouped pending reviews |
+| 9–10 | Severity zones, distributions, correlations, office profiles and subgroup anomaly evidence |
+| 11–13 | Five-fold forest/logistic comparison, feature importance, five-day ARIMA/Holt-Winters and subgroup forecasts, Isolation Forest |
+| 14–15 | Five-hop fixture lineage, column mapping, freshness, event matching and investigation hypotheses |
+| 16–18 | Forecast history and retraining safeguards, candidate/rollback exercise, daily notice replay and review dashboard |
+| 19–20 | Four optional MLflow model artifacts, demo registry aliases/tags, 19 optional Delta tables with keyed MERGE |
 
-The source file begins with `# Databricks notebook source` and contains Databricks cell markers, so the workspace recognizes it as a notebook. Running it top to bottom is the intended check.
+## Local results
 
-## What the demo shows
+September 23, 2026, seed 42 and `requirements-demo-lock.txt`:
 
-| Step | Evidence | Interpretation |
-| --- | --- | --- |
-| Data | 1,260 made-up daily counts from three fictional series; seed 42 | A reproducible operational feed with planted spikes and shifts. |
-| SPC | XmR, CUSUM and EWMA over 25-day windows; `signal_detected` is their logical OR | A signal is a review candidate. It does not establish cause, severity, or a real incident. The window can keep a signal active after an unusual day. |
-| Rule-label classifier | Random Forest trained on rolling statistics, evaluated on later dates with a gap | Reproduces a label that the rules already calculate. This model is **not** an advance warning system. The direct rules remain the first choice for determining whether those rules fired. |
-| Forward-looking model | Random Forest forecasts the next business day's count from history and known weekday/series fields | A distinct prediction task. Compare its mean absolute error against the prior count and trailing five-day mean. Synthetic results are not real-world performance estimates. |
-| Oversight | Consecutive flagged windows consolidated into review episodes with triggering rules, duration, source and `Pending analyst review` | The latest 15 episodes by signal date form a proposed review list. A reviewer would need to investigate them; the demo does not email anyone or decide an outcome. |
-| Traceability | Seed, data ID, split dates, baseline scores, MLflow run and optional Delta tables | Enough to repeat this fabricated run; actual enterprise lineage and incident audit are outside the prototype. |
+| Comparison | Result |
+| --- | --- |
+| Single-holdout rule classifier | 75.0% accuracy; always-signal baseline 78.1%; AUC 0.917 |
+| One-day count forecast | MAE 8.99 counts; trailing-five-day mean 9.73 |
+| Five-fold mean classification accuracy | Logistic regression 81.3%; random forest 78.4% |
+| Five-day pooled MAE | ARIMA 10.15; Holt-Winters 10.38; seasonal naive 12.92 |
+| Untouched final forecast origin | Earlier-selected ARIMA improves MAE 22.9% versus seasonal naive; only 15 observations |
 
-## Evaluation and limits
+Use the direct SPC rules for their own label. Forecast results justify more evaluation on authorized real data, not operational deployment. Fold averages and single-holdout results are different experiments. Pooled five-day MAE is descriptive; only earlier origins select the model.
 
-The classifier's inputs and rule label describe the same completed 25-day window. The forecast uses history available before the later daily count arrives. All series share the same date cutoff. The split separates the 25-day measurement windows, which the code asserts. Earlier 90-day reference histories can overlap training history; these are available past observations, so this is a chronological test rather than an independent-history experiment. XmR derives limits from the 25-day window itself; CUSUM and EWMA use the earlier 90 days.
+## Run locally
 
-The generated data intentionally changes between training and test. On the September 23 local run with `requirements-demo-lock.txt`, the classifier has 0.750 accuracy and 0.917 ROC AUC, while an always-signal prediction reaches 0.781 because the later set has many rule signals. Its numerical score is useful for explaining model validation and for arguing **against** deploying an unnecessary classifier. The separate forecast has 8.85 mean absolute error versus 9.73 for the trailing-mean baseline on the synthetic later period. The original handoff reported 0.741 accuracy and 0.929 AUC without a complete package snapshot. A fixed seed alone does not freeze library behavior. Rerun in Databricks and use its printed results if they differ.
-
-For a real deployment, calibrate rules with process owners, test false-alert burden, define disposition categories and owners, validate data quality and subgroups, measure drift separately from SPC process signals, review security/authorization, and demonstrate rollback. This sample proves none of those controls exist in production.
-
-## Optional presentation extras
-
-- **Delta tables:** `demo_daily`, `spc_signals`, `spc_predictions`, `count_forecasts`, `review_queue`, `monitoring_snapshot` under `OUTPUT_SCHEMA`.
-- **Dashboard:** `sql/dashboard_queries.sql` contains read-only starter queries after tables exist. A notebook chart is sufficient if SQL warehouse or dashboard access is delayed.
-- **Job:** create a Lakeflow Job with one notebook task targeting `notebooks/SPC_ML_Demo.py`; run it once and inspect its output before optionally scheduling it. See `docs/job-setup.md`.
-- **Version control:** develop on a branch, review changes, then pull them into the Databricks Git folder. Source notebooks do not normally commit output charts; rerun after pulling.
-
-## Local check
-
-With Python 3.12, use the tested dependency snapshot to reproduce the current deck. `requirements.txt` retains the broader allowed ranges:
+Use Python 3.12 and an isolated environment. Local tests do not install MLflow or Spark.
 
 ```bash
-python -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements-demo-lock.txt
 MPLBACKEND=Agg python tests/smoke_test.py
 MPLBACKEND=Agg python tests/mlflow_contract_test.py
+MPLBACKEND=Agg python tests/delta_contract_test.py
 ```
 
-The MLflow contract check simulates the 2.x and 3.x APIs without writing an actual run. Local tests omit Databricks-only Delta output. A successful local check does not replace a full Databricks run, model logging, job execution or dashboard verification.
+The smoke test executes the full notebook and checks time boundaries, forecast horizons, subgroup reconciliation, lineage cycles, retained history, retraining safeguards and replay keys. MLflow and Delta tests use simulated APIs; they do not establish workspace acceptance.
 
-## Before the oral presentation
+## Run in Databricks
 
-After pulling the newest commit into the Databricks Git folder, verify that the introductory markdown and **Cell 1** through **Cell 10** markdown appear above their corresponding code cells. Run all cells on the presentation compute, then check the MLflow run if the workspace permits it. OUTPUT_SCHEMA remains empty unless a dedicated writable demo schema has been confirmed. Bring the presenter deck as a companion to the live notebook, and use the live notebook outputs if the displayed numbers differ from the seeded local check.
+Pull the intended reviewed branch/revision into the authorized Git folder, or import `notebooks/SPC_ML_Demo.py`. Install missing dependencies through the compute's supported environment process, including statsmodels. Open the notebook, verify Cell 1–20 markdown, select presentation compute and run all cells.
 
-## Demonstration sequence
+Start with `OUTPUT_SCHEMA = ""` and `UC_MODEL_NAME = ""`. MLflow still attempts experiment logging when installed and requires experiment permissions. Inspect ten figures and the printed tables. Then verify four returned model URIs if logging succeeds.
 
-1. Say: “This is a fabricated AttainX version. I am showing the workflow, not USCIS data or results.”
-2. Run the notebook and point to planted shifts, the rule flags and `signal_detected`.
-3. Show the high signal rate and explain why the 25-day OR is a **triage input**. Point to the consolidated episode queue to show how repeated flags are grouped.
-4. Show held-out classifier results **and** constant baselines; explain why the direct rule calculation is preferable for the rule label.
-5. Show the separate next-day forecast, trailing-mean comparison and observed-versus-predicted chart.
-6. Show a pending review row, MLflow run and optional Delta/Job evidence. Explain how a reviewer could investigate and why no decision is automatic.
+For optional writes, use a **new dedicated demo schema**. Setting `OUTPUT_SCHEMA` enables 19 keyed Delta MERGEs; it does not migrate incompatible old schemas. Setting `UC_MODEL_NAME` registers four sklearn candidates with `demo_only` tags and `demo_candidate` aliases. No production alias is changed. Five-day statsmodels fits are not logged as model artifacts; predictions and assessments are retained as tables.
+
+See [job setup](docs/job-setup.md) and [SQL starter queries](sql/dashboard_queries.sql). Real MLflow/registry writes, Spark/Delta execution, schedules and SQL dashboards remain unverified on target compute. Notifications are prepared locally and never delivered. A full run retrains the demo models; it is not a separate production inference service.
+
+## Interpretation limits
+
+The demo represents every major reference workflow area with selected methods at reduced depth. It is not an exact port. Lineage and events are fixtures, subgroup forecasts are independent rather than reconciled, and historical assessments replay already observed counts. The dataset is fixed, so rerunning tomorrow does not ingest a new day. Real data loaders, live metadata discovery, durable notification delivery, independent inference services and agency authorization are outside this demonstration.

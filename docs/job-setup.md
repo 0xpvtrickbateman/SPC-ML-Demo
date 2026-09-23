@@ -1,21 +1,12 @@
-# Optional Databricks job and demo checklist
+# Optional Databricks job and dashboard
 
-The notebook works without a job. Once it succeeds interactively:
+The notebook already replays three days and renders a local operational dashboard. This guide prepares a manual platform demonstration; no live schedule or external notification delivery is enabled by the repository.
 
-1. Open **Jobs & Pipelines → Create job**. Name it `SPC Synthetic Demo`.
-2. Add one **Notebook** task named `spc_demo`, pointing to `notebooks/SPC_ML_Demo.py` in the Git folder or the imported workspace notebook.
-3. Choose the compute already used successfully for the interactive run. Leave the schedule off for the oral demonstration; use **Run now**.
-4. Open the run details and confirm success, cell outputs, the MLflow run ID, and (only if configured) Delta tables in the intended demo schema.
-5. After the demo, a daily run may be configured for the synthetic workflow. This project does not automatically retrain weekly or deliver notifications. Describe those as production design steps unless separately implemented and tested.
+1. Run all 20 cells successfully on presentation compute first.
+2. Create a job named `SPC Demo` with one notebook task for `notebooks/SPC_ML_Demo.py`, using the reviewed source revision and compatible compute/environment. Install the locked dependencies through the supported environment process.
+3. Leave its schedule off and select **Run now**. Inspect the completed run, notebook outputs and MLflow artifacts. Record the run ID and source SHA privately.
+4. If `OUTPUT_SCHEMA` is enabled, verify the dedicated schema and all 19 table counts/keys, including forecast origins. Repeat the run and check key uniqueness. The notebook uses MERGE, not a complete history replacement.
+5. Run the read-only SQL starter queries and configure time-series, scorecard and review-table visualizations. Filter every chart to the intended dataset ID. Verify the dashboard against the notebook tables.
+6. A future daily schedule would rerun the entire fixed-data demonstration, including fitting models. It is not new-data ingestion or an inference-only service. Use a live feed, stored model loading, an explicit evaluation cadence and durable review/outbox state before an operational pilot.
 
-For the orals, show the notebook first, then a completed job run if available. A pre-recorded successful run and saved screenshots are useful contingency evidence, but represent the actual version and environment they came from.
-
-## Acceptance check
-
-- The source is fictional; no USCIS table or connection appears in the code.
-- Rules, `signal_detected`, and all three figures display after **Run all**.
-- Both ML tasks show chronological holdout metrics and simple baselines.
-- The review queue is pending, and no automatic action occurs.
-- The experiment records metrics and model artifacts when MLflow is available.
-- Optional UC writes and registry are enabled only after permissions are verified.
-- The presenter explicitly distinguishes a local synthetic demonstrator from a production deployment.
+Cell 18 prepares notices and suppresses repeats within its replay. It never sends messages. Durable cross-job deduplication, retries, delivery acknowledgments and actual recipient configuration remain integration work. Retraining advice in Cell 16 never automatically retrains or promotes a deployed model.

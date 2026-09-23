@@ -1,7 +1,7 @@
 """Exercise the optional MLflow cell against the 2.x and 3.x API shapes.
 
 These stand-ins check which API argument and returned model URI the notebook uses;
-they do not claim that a Databricks workspace accepted either model.
+they do not claim that a Databricks workspace accepted any model.
 """
 import contextlib
 import io
@@ -45,6 +45,10 @@ for api_version in (2, 3):
     mlflow.log_params = lambda params: None
     mlflow.log_metrics = lambda metrics: None
     mlflow.set_registry_uri = lambda uri: calls.append(uri)
+    mlflow.MlflowClient = lambda: SimpleNamespace(
+        set_model_version_tag=lambda *args: calls.append(("tag", *args)),
+        set_registered_model_alias=lambda *args: calls.append(("alias", *args)),
+    )
     mlflow.register_model = lambda uri, name: (calls.append((uri, name)) or SimpleNamespace(version=1))
     sys.modules["mlflow"] = mlflow
     sys.modules["mlflow.sklearn"] = mlflow.sklearn
@@ -56,8 +60,12 @@ for api_version in (2, 3):
         del sys.modules["mlflow.sklearn"]
         del sys.modules["mlflow"]
 
-    assert calls[:2] == ["model", "count_forecast"]
-    assert calls[2] == "databricks-uc"
-    assert calls[3] == (namespace["classifier_model_info"].model_uri, "demo.schema.spc_rule_classifier")
+    assert calls[:4] == ["model", "count_forecast", "logistic_classifier", "isolation_forest"]
+    assert calls[4] == "databricks-uc"
+    assert calls[5] == (namespace["classifier_model_info"].model_uri, "demo.schema.spc_rule_classifier")
+    aliases = [c for c in calls if isinstance(c, tuple) and c[0] == "alias"]
+    assert len(aliases) == 4 and all(c[2] == "demo_candidate" for c in aliases)
+    tags = [c for c in calls if isinstance(c, tuple) and c[0] == "tag"]
+    assert len(tags) == 4 and all(c[3:] == ("demo_only", "true") for c in tags)
 
 print("MLflow 2.x and 3.x model logging/registration contract checks passed (simulated APIs).")
