@@ -1,9 +1,11 @@
 __pycache__/
 .pytest_cache/
 .venv/
+.venv-mlflow/
 *.pyc
 .DS_Store
 .databrickscfg
 *.dbc
 .build/
 .chart-data-*/
+artifacts/saved_forecast/

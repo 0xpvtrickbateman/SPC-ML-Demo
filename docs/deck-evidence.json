@@ -1,0 +1,279 @@
+{
+  "dataset": "attainx_applications_v3_seed42",
+  "dataSummary": "1,179,830 synthetic event rows aggregate to 1,260 daily observations across 3 series and 420 business dates.",
+  "volume": {
+    "categories": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+      "15",
+      "16",
+      "17",
+      "18",
+      "19",
+      "20",
+      "21",
+      "22",
+      "23",
+      "24",
+      "25",
+      "26",
+      "27",
+      "28",
+      "29",
+      "30"
+    ],
+    "series": [
+      {
+        "name": "Receipts A",
+        "values": [
+          850,
+          1130,
+          1070,
+          1130,
+          1150,
+          1120,
+          1210,
+          1140,
+          1140,
+          990,
+          1080,
+          1150,
+          1210,
+          1040,
+          1130,
+          1070,
+          1120,
+          1210,
+          860,
+          930,
+          940,
+          870,
+          1040,
+          1160,
+          1040,
+          1120,
+          1250,
+          1260,
+          1070,
+          1220
+        ],
+        "line": {
+          "fill": "#007C83",
+          "width": 3
+        }
+      },
+      {
+        "name": "Receipts B",
+        "values": [
+          700,
+          680,
+          660,
+          740,
+          750,
+          680,
+          780,
+          820,
+          790,
+          860,
+          860,
+          690,
+          920,
+          680,
+          820,
+          760,
+          740,
+          600,
+          720,
+          580,
+          840,
+          920,
+          700,
+          760,
+          660,
+          690,
+          850,
+          760,
+          890,
+          680
+        ],
+        "line": {
+          "fill": "#BC6C25",
+          "width": 3
+        }
+      },
+      {
+        "name": "Completions A",
+        "values": [
+          920,
+          910,
+          980,
+          870,
+          850,
+          970,
+          930,
+          980,
+          950,
+          800,
+          890,
+          1110,
+          840,
+          710,
+          730,
+          940,
+          970,
+          950,
+          1040,
+          640,
+          980,
+          1120,
+          840,
+          880,
+          840,
+          850,
+          940,
+          1100,
+          1110,
+          880
+        ],
+        "line": {
+          "fill": "#315B9B",
+          "width": 3
+        }
+      }
+    ]
+  },
+  "trainingSummary": "Classifier: 615 training windows, 228 later test windows, with a 25-business-day separation.",
+  "classificationTable": [
+    [
+      "Experiment",
+      "Model / reference",
+      "Score"
+    ],
+    [
+      "Holdout accuracy",
+      "Random forest",
+      "75.0%"
+    ],
+    [
+      "Holdout accuracy",
+      "Always signal",
+      "78.1%"
+    ],
+    [
+      "Holdout precision / recall",
+      "Random forest",
+      "96.9% / 70.2%"
+    ],
+    [
+      "Five-fold mean F1",
+      "Random forest",
+      "0.592"
+    ],
+    [
+      "Five-fold mean F1",
+      "Logistic regression",
+      "0.628"
+    ]
+  ],
+  "classificationWidths": [
+    370,
+    470,
+    290
+  ],
+  "classificationConclusion": "Logistic regression has higher mean fold F1. Keep direct rules for their known target.",
+  "forecastTable": [
+    [
+      "Horizon / sample",
+      "Method",
+      "MAE (counts)"
+    ],
+    [
+      "Next day, 225 rows",
+      "Random forest",
+      "90.01"
+    ],
+    [
+      "Next day, 225 rows",
+      "Previous count",
+      "109.87"
+    ],
+    [
+      "Next day, 225 rows",
+      "Trailing mean",
+      "97.26"
+    ],
+    [
+      "Five days, 90 rows",
+      "ARIMA",
+      "101.54"
+    ],
+    [
+      "Five days, 90 rows",
+      "Holt-Winters",
+      "104.00"
+    ],
+    [
+      "Five days, 90 rows",
+      "Seasonal naive",
+      "129.22"
+    ]
+  ],
+  "forecastConclusion": "Lower MAE is better. Five-day values pool six origins and are descriptive.",
+  "reuseSummary": "Fresh processes reload joblib and local MLflow models with identical predictions.",
+  "driftSummary": "Controlled outcome shift: one worse window triggers watch, two trigger review.",
+  "validationSummary": "Holdout signal share 78.1%. Isolation Forest flags 18 of 228 windows.",
+  "isolationContamination": 0.04455284552845529,
+  "source": "Final local smoke-test receipt from notebooks/SPC_ML_Demo.py",
+  "rawMetrics": {
+    "classifier": {
+      "accuracy": 0.75,
+      "precision": 0.9689922480620154,
+      "recall": 0.702247191011236,
+      "f1": 0.8143322475570033,
+      "roc_auc": 0.9169662921348315,
+      "majority_baseline_accuracy": 0.21929824561403508,
+      "always_signal_accuracy": 0.7807017543859649,
+      "always_no_signal_accuracy": 0.2192982456140351,
+      "test_signal_rate": 0.7807017543859649
+    },
+    "forecast": {
+      "forecast_mae": 90.01239651211661,
+      "forecast_bias": 2.5168878297254063,
+      "last_value_baseline_mae": 109.86666666666666,
+      "trailing_mean_baseline_mae": 97.26222222222222
+    },
+    "foldMeanF1": {
+      "Random forest": 0.59198870584,
+      "Logistic regression": 0.6279181029800001
+    },
+    "fiveDay": [
+      {
+        "model": "ARIMA",
+        "mae": 101.5429715607,
+        "forecast_rows": 90
+      },
+      {
+        "model": "Holt-Winters",
+        "mae": 104.0015120549,
+        "forecast_rows": 90
+      },
+      {
+        "model": "Seasonal naive",
+        "mae": 129.2222222222,
+        "forecast_rows": 90
+      }
+    ]
+  }
+}
