@@ -4,7 +4,7 @@
 
 Continue preparing the AttainX synthetic statistical process control (SPC) and machine learning notebook for a live federal RFI oral demonstration. Keep the explanation understandable to people who have never seen SPC or Databricks. Preserve the distinction between a working demonstration, an operational pilot, and USCIS results.
 
-The durable source is [0xpvtrickbateman/SPC-ML-Demo](https://github.com/0xpvtrickbateman/SPC-ML-Demo), branch `main`. The latest verified project commit before this handoff is `9e1c5d26d98e5658644a1ee460ceb342877551f4`. Clone the GitHub repository in a new workspace.
+The durable source is [0xpvtrickbateman/SPC-ML-Demo](https://github.com/0xpvtrickbateman/SPC-ML-Demo), branch `main`. The original handoff used `9e1c5d26d98e5658644a1ee460ceb342877551f4`; the September 23 continuation reviewed newer base `a23afbd08a4761d3e0ccbdbd3b6bb0afc5026695`. Check current `main` before continuing. See [presentation runbook](presentation-runbook.md) for the latest local evidence and target-workspace checks still required.
 
 ## Deliverables already in the repo
 
@@ -28,7 +28,7 @@ The USCIS reference notebook and real outputs were **not** committed to the publ
 9. Logs metrics and two model artifacts to MLflow when available; Unity Catalog registration is off unless explicitly configured.
 10. Optionally writes six managed Delta tables to a designated demo schema; `OUTPUT_SCHEMA` defaults to empty.
 
-The local seeded smoke test passed. It reported 915 labeled windows; 52.3% overall rule signal rate; 228 classifier test rows with a 78.1% signal rate; classifier accuracy 74.1% versus 78.1% for always predicting signal; classifier ROC AUC 0.929; one-day forecast MAE 8.85 counts versus 9.73 for a five-day trailing-mean baseline; and 479 flagged windows consolidated into 30 review episodes. These numbers describe only this synthetic run. The classifier fails a simple accuracy baseline, so recommending the direct rules is the honest decision. The forecast merits further testing; it has not been validated on real agency data.
+The September 23 local seeded smoke test passed with `requirements-demo-lock.txt`. It reported 915 labeled windows; 52.3% overall rule signal rate; 228 classifier test rows with a 78.1% signal rate; classifier accuracy 75.0% versus 78.1% for always predicting signal; classifier ROC AUC 0.917; one-day forecast MAE 8.85 counts versus 9.73 for a five-day trailing-mean baseline; and 479 flagged windows consolidated into 30 review episodes. The original handoff reported 74.1% accuracy and 0.929 AUC under an earlier environment. These numbers describe synthetic runs only, and package versions matter. The classifier fails a simple accuracy baseline, so recommending the direct rules is the honest decision. The forecast merits further testing; it has not been validated on real agency data.
 
 ## RFI / oral scope
 
@@ -36,7 +36,7 @@ The deck maps to 14 oral questions: (1) live working capability and lifecycle; (
 
 **Outstanding oral gap:** Question 12 requests a prior customer engagement. The classifier in this demo is a present-day decision against unnecessary ML, but it does not satisfy the historical-example requirement. Obtain a verified example from AttainX leadership; do not invent one.
 
-The supplied USCIS reference notebook documents a broader implementation: five-day forecasting, classification and anomaly detection, upstream lineage, and fixes for repeated alerts and stale retraining triggers. It is distinct from this one-day synthetic forecast. There is no supplied, verified postchange measurement of USCIS staff time saved or alert reduction; avoid claiming one.
+The supplied USCIS reference notebook documents a broader implementation: five-day forecasting, classification and anomaly detection, upstream lineage, and assessment/stale retraining-trigger fixes. Its closing Phase 11/Phase 12 notes list downstream alert consolidation and suppression as future work. It is distinct from this one-day synthetic forecast. There is no supplied, verified postchange measurement of USCIS staff time saved or alert reduction; avoid claiming one.
 
 ## Next actions for the receiving agent
 

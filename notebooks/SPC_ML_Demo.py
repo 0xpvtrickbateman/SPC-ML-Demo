@@ -22,7 +22,7 @@
 # MAGIC ### Cell 1: Set the rules for this run
 # MAGIC **Plain English:** Choose the random seed, how much history each rule reads, and whether to save results.
 # MAGIC **Technique:** Python libraries handle tables, numerical calculations, charts, and random forest models.
-# MAGIC **Check:** `OUTPUT_SCHEMA` and `UC_MODEL_NAME` are empty by default, so the first run needs no write permissions.
+# MAGIC **Check:** `OUTPUT_SCHEMA` and `UC_MODEL_NAME` are empty by default, so Delta writes and model registration are off. MLflow still needs experiment write access when installed.
 # MAGIC **Developer note:** Change the settings here, then rerun all cells so labels, splits, charts, and logged metrics agree.
 
 # COMMAND ----------
@@ -53,7 +53,7 @@ EWMA_L = 2.703
 DATASET_ID = f"attainx_synthetic_v1_seed{SEED}"
 
 # Optional: set to an existing Unity Catalog catalog.schema after the first successful run.
-# Example: OUTPUT_SCHEMA = "main.default". Empty means charts/MLflow only.
+# Example: OUTPUT_SCHEMA = "demo_catalog.spc_demo". Empty means charts/MLflow only.
 OUTPUT_SCHEMA = ""
 # Optional: set to a permitted three-part catalog.schema.model name to register the model.
 # Leave empty until the notebook and MLflow experiment work.
@@ -142,7 +142,7 @@ def ewma_signal(window, baseline_mean, baseline_sigma):
 
 # MAGIC %md
 # MAGIC ### Cell 4: Turn past counts into signals and features
-# MAGIC **Plain English:** For each date, inspect the prior 25 business days against an earlier 90-day reference period. Save which SPC check fired.
+# MAGIC **Plain English:** For each date, inspect the prior 25 business days. XmR derives limits from that window; CUSUM and EWMA use an earlier 90-day reference period. Save which SPC check fired.
 # MAGIC **Technique:** Rolling-window feature engineering produces means, variation, recent trend, and distance from the baseline. `signal_detected` is `xmr_signal OR cusum_signal OR ewma_signal`.
 # MAGIC **Output:** `signals_df` contains the rule flags and measurements used later by the models.
 # MAGIC **Developer note:** The features and rule label describe the **same past window**. The classifier below imitates these rules; it is not advance warning.
@@ -193,7 +193,7 @@ print(signals_df[["xmr_signal", "cusum_signal", "ewma_signal"]].mean().map(lambd
 # MAGIC %md
 # MAGIC ### Cell 5: Test whether ML can copy the rule label
 # MAGIC **Plain English:** Train on earlier dates and ask a random forest if the SPC rules fired on later dates.
-# MAGIC **Technique:** A chronological holdout with a 25-business-day gap prevents overlapping train and test windows. Compare accuracy with constant predictions, and read precision, recall, F1, and ROC AUC.
+# MAGIC **Technique:** A chronological holdout separates the 25-day train and test windows. The earlier 90-day reference histories can overlap; all inputs still precede their run date. Compare accuracy with constant predictions, and read precision, recall, F1, and ROC AUC.
 # MAGIC **Output:** `predictions_df` holds the model calls; `metrics` holds both model and simple-baseline scores.
 # MAGIC **Decision:** This classification is useful only if it adds something to directly running the known rules. A strong AUC alone does not establish added mission value.
 
@@ -201,8 +201,9 @@ print(signals_df[["xmr_signal", "cusum_signal", "ewma_signal"]].mean().map(lambd
 
 # DBTITLE 1,Train chronologically and compare against a simple baseline
 # Each feature is known at the end of the 25-day window; no future values are inputs.
-# The evaluation starts 25 business days after training ends, so train/test windows
-# cannot overlap. Metrics describe synthetic rule reproduction, not real-world performance.
+# The evaluation starts 25 business days after training ends, so the 25-day
+# measurement windows cannot overlap. Earlier 90-day reference histories can overlap.
+# Metrics describe synthetic rule reproduction, not real-world performance.
 feature_cols = ["window_mean", "window_std", "window_range", "mr_mean",
                 "last_value", "last_5_mean", "last_5_std", "trend", "baseline_mean", "baseline_sigma",
                 "max_baseline_deviation", "max_window_deviation"]
@@ -323,10 +324,10 @@ ax.scatter(marked.run_date, marked.last_value, facecolor="white", edgecolor="#85
            s=30, linewidth=1.2, label="Rule signal for 25-day window")
 ax.set(title="Synthetic SPC history — Intake A (last 90 runs)", xlabel="Run date", ylabel="Daily count")
 ax.legend(loc="upper left", fontsize=8)
-ax.text(0.01, -0.33, "Circles mean any rule fired in the prior 25 days; the plotted point need not cross an XmR limit.",
-        transform=ax.transAxes, fontsize=8, color="#444444")
+fig.text(0.08, 0.01, "Circles mean any rule fired in the prior 25 days; the plotted point need not cross an XmR limit.",
+         fontsize=8, color="#444444")
 fig.autofmt_xdate()
-fig.subplots_adjust(bottom=0.34)
+fig.subplots_adjust(bottom=0.36)
 plt.show()
 
 fig, ax = plt.subplots(figsize=(5, 4))

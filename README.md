@@ -4,11 +4,12 @@ An AttainX demonstration of statistical process control and machine learning usi
 
 See [reference-to-demo mapping](docs/reference-mapping.md) for the specific reference ideas represented here and the capabilities intentionally left out.
 The [presenter deck](docs/SPC_ML_Demo_Walkthrough_Ready.pptx) explains SPC, every executable notebook cell, the distinct ML tasks, the observed synthetic results, and the oral-question coverage. Its speaker notes provide a plain-English talk track.
+Use the [presentation runbook](docs/presentation-runbook.md) for the exact rehearsal order, execution receipt, and remaining oral evidence gaps.
 
 ## Five-minute setup in Databricks
 
 1. In **Workspace**, open the Git folder for this repository, then open `notebooks/SPC_ML_Demo.py` as a notebook. If Git folders are not ready, import that file through **Workspace → Import**.
-2. Choose available Python compute and run **Run all**. The default settings require no catalog, secret, external file, GPU, or model serving endpoint. This revision passed a local top-to-bottom check; verify it in your own Databricks workspace before the oral presentation.
+2. Choose available Python compute and run **Run all**. The default settings require no Unity Catalog destination, secret, external file, GPU, or model serving endpoint. MLflow, when installed, still writes to an experiment and needs access there. This revision passed a local top-to-bottom check; verify it in your own Databricks workspace before the oral presentation.
 3. Inspect the three figures, printed held-out metrics, and pending analyst review queue. Check the MLflow run ID and both logged model URIs if MLflow is available. Each code cell has a short explanatory markdown cell directly above it. Allow a few minutes for compute startup.
 4. If you have a writable Unity Catalog catalog and schema, set `OUTPUT_SCHEMA = "catalog.schema"` near the top and rerun to create six managed Delta tables. Leave it empty if permissions or managed storage are not yet ready.
 5. If a Unity Catalog model registry is ready, set `UC_MODEL_NAME = "catalog.schema.spc_rule_classifier"` and rerun. Registration is optional. Do not point this demo at production objects.
@@ -28,9 +29,9 @@ The source file begins with `# Databricks notebook source` and contains Databric
 
 ## Evaluation and limits
 
-Each example's inputs are available before its target: the rule-label classifier sees the prior 25-day window; the forecast's target is the later daily count. All series share the same date cutoff. A 25-business-day gap separates training and test windows. The code asserts these boundaries.
+The classifier's inputs and rule label describe the same completed 25-day window. The forecast uses history available before the later daily count arrives. All series share the same date cutoff. The split separates the 25-day measurement windows, which the code asserts. Earlier 90-day reference histories can overlap training history; these are available past observations, so this is a chronological test rather than an independent-history experiment. XmR derives limits from the 25-day window itself; CUSUM and EWMA use the earlier 90 days.
 
-The generated data intentionally changes between training and test. On the verified local run, the classifier has 0.741 accuracy, while an always-signal prediction reaches 0.781 because the later set has many rule signals. Its numerical score is useful for explaining model validation and for arguing **against** deploying an unnecessary classifier. The separate forecast has 8.85 mean absolute error versus 9.73 for the trailing-mean baseline on the synthetic later period. Rerun in Databricks and use its printed results if they differ.
+The generated data intentionally changes between training and test. On the September 23 local run with `requirements-demo-lock.txt`, the classifier has 0.750 accuracy and 0.917 ROC AUC, while an always-signal prediction reaches 0.781 because the later set has many rule signals. Its numerical score is useful for explaining model validation and for arguing **against** deploying an unnecessary classifier. The separate forecast has 8.85 mean absolute error versus 9.73 for the trailing-mean baseline on the synthetic later period. The original handoff reported 0.741 accuracy and 0.929 AUC without a complete package snapshot. A fixed seed alone does not freeze library behavior. Rerun in Databricks and use its printed results if they differ.
 
 For a real deployment, calibrate rules with process owners, test false-alert burden, define disposition categories and owners, validate data quality and subgroups, measure drift separately from SPC process signals, review security/authorization, and demonstrate rollback. This sample proves none of those controls exist in production.
 
@@ -43,10 +44,12 @@ For a real deployment, calibrate rules with process owners, test false-alert bur
 
 ## Local check
 
-With Python 3.12 and packages in `requirements.txt`:
+With Python 3.12, use the tested dependency snapshot to reproduce the current deck. `requirements.txt` retains the broader allowed ranges:
 
 ```bash
-python -m pip install -r requirements.txt
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-demo-lock.txt
 MPLBACKEND=Agg python tests/smoke_test.py
 MPLBACKEND=Agg python tests/mlflow_contract_test.py
 ```
