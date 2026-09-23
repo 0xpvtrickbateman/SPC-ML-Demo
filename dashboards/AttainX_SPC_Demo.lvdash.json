@@ -4,70 +4,70 @@
       "name": "replay_daily",
       "displayName": "Replay Daily",
       "queryLines": [
-        "SELECT series_id, CAST(run_date AS DATE) AS run_date, evaluation_actual, predicted_count, trailing_mean_baseline FROM demo_catalog.demo_schema.demo_drift_daily WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Recorded replay'"
+        "SELECT series_id, CAST(run_date AS DATE) AS run_date, evaluation_actual, predicted_count, trailing_mean_baseline FROM ml_statistical_process_controls.demo_schema.demo_drift_daily WHERE dataset_id = 'attainx_applications_v3_seed42' AND scenario = 'Recorded replay'"
       ]
     },
     {
       "name": "replay_performance",
       "displayName": "Replay Performance",
       "queryLines": [
-        "SELECT series_id, CAST(window_start AS DATE) AS window_start, CAST(window_end AS DATE) AS window_end, window_number, n_actuals, expected_actuals, mae, reference_mae, baseline_mae, bias, review_threshold, status FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Recorded replay'"
+        "SELECT series_id, CAST(window_start AS DATE) AS window_start, CAST(window_end AS DATE) AS window_end, window_number, n_actuals, expected_actuals, coverage, model_version, mae, reference_mae, baseline_mae, bias, review_threshold, status FROM ml_statistical_process_controls.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_applications_v3_seed42' AND scenario = 'Recorded replay'"
       ]
     },
     {
       "name": "replay_latest",
       "displayName": "Replay Latest",
       "queryLines": [
-        "SELECT series_id, n_actuals, mae, reference_mae, baseline_mae, status, window_end FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Recorded replay' AND window_number = 2"
+        "SELECT series_id, n_actuals, expected_actuals, coverage, model_version, model_type, model_identity, run_generated_at, reference_start, reference_end, training_start, training_end, mae, reference_mae, baseline_mae, status, window_start, window_end FROM ml_statistical_process_controls.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_applications_v3_seed42' AND scenario = 'Recorded replay' AND window_number = 2"
       ]
     },
     {
       "name": "replay_errors",
       "displayName": "Replay Errors",
       "queryLines": [
-        "SELECT series_id, CAST(window_end AS DATE) AS window_end, mae AS error_count, CONCAT(series_id, ' \u00b7 Model MAE') AS measure FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Recorded replay' UNION ALL SELECT series_id, CAST(window_end AS DATE) AS window_end, baseline_mae AS error_count, CONCAT(series_id, ' \u00b7 Simple baseline MAE') AS measure FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Recorded replay' UNION ALL SELECT series_id, CAST(window_end AS DATE) AS window_end, review_threshold AS error_count, CONCAT(series_id, ' \u00b7 Review threshold') AS measure FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Recorded replay'"
+        "SELECT series_id, CAST(window_end AS DATE) AS window_end, mae AS error_count, CONCAT(series_id, ' \u00b7 Model MAE') AS measure FROM ml_statistical_process_controls.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_applications_v3_seed42' AND scenario = 'Recorded replay' UNION ALL SELECT series_id, CAST(window_end AS DATE) AS window_end, baseline_mae AS error_count, CONCAT(series_id, ' \u00b7 Simple baseline MAE') AS measure FROM ml_statistical_process_controls.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_applications_v3_seed42' AND scenario = 'Recorded replay' UNION ALL SELECT series_id, CAST(window_end AS DATE) AS window_end, review_threshold AS error_count, CONCAT(series_id, ' \u00b7 Review threshold') AS measure FROM ml_statistical_process_controls.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_applications_v3_seed42' AND scenario = 'Recorded replay'"
       ]
     },
     {
       "name": "exercise_daily",
       "displayName": "Exercise Daily",
       "queryLines": [
-        "SELECT series_id, CAST(run_date AS DATE) AS run_date, evaluation_actual, predicted_count, trailing_mean_baseline FROM demo_catalog.demo_schema.demo_drift_daily WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Performance drift exercise'"
+        "SELECT series_id, CAST(run_date AS DATE) AS run_date, evaluation_actual, predicted_count, trailing_mean_baseline FROM ml_statistical_process_controls.demo_schema.demo_drift_daily WHERE dataset_id = 'attainx_applications_v3_seed42' AND scenario = 'Performance drift exercise'"
       ]
     },
     {
       "name": "exercise_performance",
       "displayName": "Exercise Performance",
       "queryLines": [
-        "SELECT series_id, CAST(window_start AS DATE) AS window_start, CAST(window_end AS DATE) AS window_end, window_number, n_actuals, expected_actuals, mae, reference_mae, baseline_mae, bias, review_threshold, status FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Performance drift exercise'"
+        "SELECT series_id, CAST(window_start AS DATE) AS window_start, CAST(window_end AS DATE) AS window_end, window_number, n_actuals, expected_actuals, coverage, model_version, mae, reference_mae, baseline_mae, bias, review_threshold, status FROM ml_statistical_process_controls.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_applications_v3_seed42' AND scenario = 'Performance drift exercise'"
       ]
     },
     {
       "name": "exercise_latest",
       "displayName": "Exercise Latest",
       "queryLines": [
-        "SELECT series_id, n_actuals, mae, reference_mae, baseline_mae, status, window_end FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Performance drift exercise' AND window_number = 2"
+        "SELECT series_id, n_actuals, expected_actuals, coverage, model_version, model_type, model_identity, run_generated_at, reference_start, reference_end, training_start, training_end, mae, reference_mae, baseline_mae, status, window_start, window_end FROM ml_statistical_process_controls.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_applications_v3_seed42' AND scenario = 'Performance drift exercise' AND window_number = 2"
       ]
     },
     {
       "name": "exercise_errors",
       "displayName": "Exercise Errors",
       "queryLines": [
-        "SELECT series_id, CAST(window_end AS DATE) AS window_end, mae AS error_count, CONCAT(series_id, ' \u00b7 Model MAE') AS measure FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Performance drift exercise' UNION ALL SELECT series_id, CAST(window_end AS DATE) AS window_end, baseline_mae AS error_count, CONCAT(series_id, ' \u00b7 Simple baseline MAE') AS measure FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Performance drift exercise' UNION ALL SELECT series_id, CAST(window_end AS DATE) AS window_end, review_threshold AS error_count, CONCAT(series_id, ' \u00b7 Review threshold') AS measure FROM demo_catalog.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Performance drift exercise'"
+        "SELECT series_id, CAST(window_end AS DATE) AS window_end, mae AS error_count, CONCAT(series_id, ' \u00b7 Model MAE') AS measure FROM ml_statistical_process_controls.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_applications_v3_seed42' AND scenario = 'Performance drift exercise' UNION ALL SELECT series_id, CAST(window_end AS DATE) AS window_end, baseline_mae AS error_count, CONCAT(series_id, ' \u00b7 Simple baseline MAE') AS measure FROM ml_statistical_process_controls.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_applications_v3_seed42' AND scenario = 'Performance drift exercise' UNION ALL SELECT series_id, CAST(window_end AS DATE) AS window_end, review_threshold AS error_count, CONCAT(series_id, ' \u00b7 Review threshold') AS measure FROM ml_statistical_process_controls.demo_schema.demo_drift_performance WHERE dataset_id = 'attainx_applications_v3_seed42' AND scenario = 'Performance drift exercise'"
       ]
     },
     {
       "name": "input_change",
       "displayName": "Input Change",
       "queryLines": [
-        "SELECT series_id, feature, shift_score, threshold, reference_n, current_n, missing_rate, status FROM demo_catalog.demo_schema.demo_drift_inputs WHERE dataset_id = 'attainx_demo_v2_seed42' AND scenario = 'Recorded replay' AND window_number = 2"
+        "SELECT series_id, feature, shift_score, threshold, reference_n, current_n, missing_rate, reference_start, reference_end, window_start, window_end, status FROM ml_statistical_process_controls.demo_schema.demo_drift_inputs WHERE dataset_id = 'attainx_applications_v3_seed42' AND scenario = 'Recorded replay' AND window_number = 2"
       ]
     },
     {
       "name": "review_queue",
       "displayName": "Review Queue",
       "queryLines": [
-        "SELECT series_id, episode_id, CAST(run_date AS DATE) AS run_date, CAST(last_signal_date AS DATE) AS last_signal_date, signal_windows, rule_fired, disposition FROM demo_catalog.demo_schema.review_queue WHERE dataset_id = 'attainx_demo_v2_seed42'"
+        "SELECT series_id, episode_id, CAST(run_date AS DATE) AS run_date, CAST(last_signal_date AS DATE) AS last_signal_date, signal_windows, rule_fired, disposition FROM ml_statistical_process_controls.demo_schema.review_queue WHERE dataset_id = 'attainx_applications_v3_seed42'"
       ]
     }
   ],
@@ -308,7 +308,7 @@
             "name": "overview_intro",
             "multilineTextboxSpec": {
               "lines": [
-                "## SPC and model monitoring\n\nAttainX \u00b7 Fictional data \u00b7 Recorded replay. The forecast is frozen; actual counts arrive afterward. Use the queue filter to focus on one process. No live monitoring is connected."
+                "## Application-volume monitoring\n\nAttainX \u00b7 Synthetic USCIS-related application volumes; no real agency records or operational claims. Recorded replay. The forecast is frozen; actual counts arrive afterward. Use the queue filter to focus on one synthetic process. Latest dates are data-as-of, not refresh timestamps. No live monitoring is connected."
               ]
             }
           },
@@ -333,6 +333,14 @@
                       "expression": "`series_id`"
                     },
                     {
+                      "name": "window_start",
+                      "expression": "`window_start`"
+                    },
+                    {
+                      "name": "window_end",
+                      "expression": "`window_end`"
+                    },
+                    {
                       "name": "mae",
                       "expression": "`mae`"
                     },
@@ -347,6 +355,10 @@
                     {
                       "name": "n_actuals",
                       "expression": "`n_actuals`"
+                    },
+                    {
+                      "name": "expected_actuals",
+                      "expression": "`expected_actuals`"
                     },
                     {
                       "name": "status",
@@ -367,6 +379,14 @@
                     "displayName": "Queue"
                   },
                   {
+                    "fieldName": "window_start",
+                    "displayName": "From"
+                  },
+                  {
+                    "fieldName": "window_end",
+                    "displayName": "Data through"
+                  },
+                  {
                     "fieldName": "mae",
                     "displayName": "Latest MAE"
                   },
@@ -381,6 +401,10 @@
                   {
                     "fieldName": "n_actuals",
                     "displayName": "Matched actuals"
+                  },
+                  {
+                    "fieldName": "expected_actuals",
+                    "displayName": "Expected actuals"
                   },
                   {
                     "fieldName": "status",
@@ -401,6 +425,106 @@
             "y": 3,
             "width": 12,
             "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "replay_identity",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "replay_latest",
+                  "fields": [
+                    {
+                      "name": "series_id",
+                      "expression": "`series_id`"
+                    },
+                    {
+                      "name": "model_type",
+                      "expression": "`model_type`"
+                    },
+                    {
+                      "name": "model_identity",
+                      "expression": "`model_identity`"
+                    },
+                    {
+                      "name": "run_generated_at",
+                      "expression": "`run_generated_at`"
+                    },
+                    {
+                      "name": "training_start",
+                      "expression": "`training_start`"
+                    },
+                    {
+                      "name": "training_end",
+                      "expression": "`training_end`"
+                    },
+                    {
+                      "name": "reference_start",
+                      "expression": "`reference_start`"
+                    },
+                    {
+                      "name": "reference_end",
+                      "expression": "`reference_end`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "series_id",
+                    "displayName": "Queue"
+                  },
+                  {
+                    "fieldName": "model_type",
+                    "displayName": "Model"
+                  },
+                  {
+                    "fieldName": "model_identity",
+                    "displayName": "MLflow URI or local artifact hash"
+                  },
+                  {
+                    "fieldName": "run_generated_at",
+                    "displayName": "Executed at UTC"
+                  },
+                  {
+                    "fieldName": "training_start",
+                    "displayName": "Training from"
+                  },
+                  {
+                    "fieldName": "training_end",
+                    "displayName": "Training through"
+                  },
+                  {
+                    "fieldName": "reference_start",
+                    "displayName": "Error reference from"
+                  },
+                  {
+                    "fieldName": "reference_end",
+                    "displayName": "Error reference through"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Model and saved-run identity",
+                "showDescription": false,
+                "description": ""
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 7,
+            "width": 12,
+            "height": 5
           }
         },
         {
@@ -473,7 +597,7 @@
           },
           "position": {
             "x": 0,
-            "y": 7,
+            "y": 12,
             "width": 12,
             "height": 6
           }
@@ -483,15 +607,15 @@
             "name": "workflow",
             "multilineTextboxSpec": {
               "lines": [
-                "### Counts \u2192 historical features \u2192 rules and forecasts \u2192 review\n\nSPC asks whether the process changed. Input monitoring asks whether model inputs differ from training. Performance monitoring asks whether saved predictions became less accurate after actuals arrived."
+                "### Application events \u2192 daily volumes \u2192 rules and forecasts \u2192 review\n\nOver one million synthetic event rows roll up to 1,260 daily queue observations. Intake A/B count receipts; Completions A counts workflow completion events. These are independent streams, not a linked case lifecycle. SPC asks whether the process changed. Input monitoring asks whether model inputs differ from training. Performance monitoring asks whether saved predictions became less accurate after actuals arrived. Model identity is an actual MLflow URI when available, otherwise an explicitly local artifact hash. Execution time is separate from the historical data dates."
               ]
             }
           },
           "position": {
             "x": 0,
-            "y": 13,
+            "y": 18,
             "width": 12,
-            "height": 3
+            "height": 4
           }
         }
       ]
@@ -571,7 +695,7 @@
                 "showTitle": true,
                 "title": "Latest input distribution change vs training",
                 "showDescription": true,
-                "description": "Distance in training standard-deviation units. Above 0.5 prompts investigation; illustrative threshold, three numeric features only."
+                "description": "Distance in training standard-deviation units. Above 0.5 prompts investigation; illustrative threshold, three numeric features only. At least 20 finite rows in each comparison and nonzero training variation are required; otherwise evidence is insufficient."
               },
               "mark": {
                 "layout": "group"
@@ -654,7 +778,7 @@
             "name": "drift_rule",
             "multilineTextboxSpec": {
               "lines": [
-                "**Performance rule:** The first held-out window is the reference. Review after two consecutive windows exceed 125% of reference MAE (one-count floor), with at least 20 matched actuals each. Calibrate thresholds before operational use. Labels must arrive before accuracy can be assessed."
+                "**Performance rule:** The first held-out window is the reference. Review after two consecutive windows exceed 125% of reference MAE (one-count floor), with at least 20 matched actuals in each monitoring window and the reference. Fewer observations means insufficient evidence, not healthy performance. Calibrate thresholds before operational use. Labels must arrive before accuracy can be assessed."
               ]
             }
           },
@@ -683,12 +807,20 @@
                       "expression": "`window_number`"
                     },
                     {
+                      "name": "window_start",
+                      "expression": "`window_start`"
+                    },
+                    {
                       "name": "window_end",
                       "expression": "`window_end`"
                     },
                     {
                       "name": "n_actuals",
                       "expression": "`n_actuals`"
+                    },
+                    {
+                      "name": "expected_actuals",
+                      "expression": "`expected_actuals`"
                     },
                     {
                       "name": "mae",
@@ -721,6 +853,10 @@
                     "displayName": "Window: 0 = reference"
                   },
                   {
+                    "fieldName": "window_start",
+                    "displayName": "From"
+                  },
+                  {
                     "fieldName": "window_end",
                     "displayName": "Through"
                   },
@@ -729,12 +865,16 @@
                     "displayName": "Actuals"
                   },
                   {
+                    "fieldName": "expected_actuals",
+                    "displayName": "Expected"
+                  },
+                  {
                     "fieldName": "mae",
                     "displayName": "Model MAE"
                   },
                   {
                     "fieldName": "bias",
-                    "displayName": "Bias: actual \u2212 forecast"
+                    "displayName": "Bias: forecast \u2212 actual"
                   },
                   {
                     "fieldName": "status",
@@ -775,6 +915,22 @@
                       "expression": "`feature`"
                     },
                     {
+                      "name": "reference_start",
+                      "expression": "`reference_start`"
+                    },
+                    {
+                      "name": "reference_end",
+                      "expression": "`reference_end`"
+                    },
+                    {
+                      "name": "window_start",
+                      "expression": "`window_start`"
+                    },
+                    {
+                      "name": "window_end",
+                      "expression": "`window_end`"
+                    },
+                    {
                       "name": "reference_n",
                       "expression": "`reference_n`"
                     },
@@ -811,6 +967,22 @@
                   {
                     "fieldName": "feature",
                     "displayName": "Input"
+                  },
+                  {
+                    "fieldName": "reference_start",
+                    "displayName": "Training from"
+                  },
+                  {
+                    "fieldName": "reference_end",
+                    "displayName": "Training through"
+                  },
+                  {
+                    "fieldName": "window_start",
+                    "displayName": "Current from"
+                  },
+                  {
+                    "fieldName": "window_end",
+                    "displayName": "Current through"
                   },
                   {
                     "fieldName": "reference_n",
@@ -862,7 +1034,7 @@
             "name": "exercise_intro",
             "multilineTextboxSpec": {
               "lines": [
-                "## Controlled performance drift exercise\n\nAdd 35 counts to outcomes in the last two windows. Inputs, model and saved predictions remain unchanged. These scenario results are separate from the recorded replay; no model is retrained."
+                "## Controlled performance drift exercise\n\nAdd 350 applications to outcomes in the last two windows. Inputs, model and saved predictions remain unchanged. These scenario results are separate from the recorded replay; no model is retrained."
               ]
             }
           },
@@ -887,6 +1059,14 @@
                       "expression": "`series_id`"
                     },
                     {
+                      "name": "window_start",
+                      "expression": "`window_start`"
+                    },
+                    {
+                      "name": "window_end",
+                      "expression": "`window_end`"
+                    },
+                    {
                       "name": "mae",
                       "expression": "`mae`"
                     },
@@ -901,6 +1081,10 @@
                     {
                       "name": "n_actuals",
                       "expression": "`n_actuals`"
+                    },
+                    {
+                      "name": "expected_actuals",
+                      "expression": "`expected_actuals`"
                     },
                     {
                       "name": "status",
@@ -921,6 +1105,14 @@
                     "displayName": "Queue"
                   },
                   {
+                    "fieldName": "window_start",
+                    "displayName": "From"
+                  },
+                  {
+                    "fieldName": "window_end",
+                    "displayName": "Data through"
+                  },
+                  {
                     "fieldName": "mae",
                     "displayName": "Latest MAE"
                   },
@@ -935,6 +1127,10 @@
                   {
                     "fieldName": "n_actuals",
                     "displayName": "Matched actuals"
+                  },
+                  {
+                    "fieldName": "expected_actuals",
+                    "displayName": "Expected actuals"
                   },
                   {
                     "fieldName": "status",
@@ -1039,12 +1235,20 @@
                       "expression": "`window_number`"
                     },
                     {
+                      "name": "window_start",
+                      "expression": "`window_start`"
+                    },
+                    {
                       "name": "window_end",
                       "expression": "`window_end`"
                     },
                     {
                       "name": "n_actuals",
                       "expression": "`n_actuals`"
+                    },
+                    {
+                      "name": "expected_actuals",
+                      "expression": "`expected_actuals`"
                     },
                     {
                       "name": "mae",
@@ -1077,6 +1281,10 @@
                     "displayName": "Window: 0 = reference"
                   },
                   {
+                    "fieldName": "window_start",
+                    "displayName": "From"
+                  },
+                  {
                     "fieldName": "window_end",
                     "displayName": "Through"
                   },
@@ -1085,12 +1293,16 @@
                     "displayName": "Actuals"
                   },
                   {
+                    "fieldName": "expected_actuals",
+                    "displayName": "Expected"
+                  },
+                  {
                     "fieldName": "mae",
                     "displayName": "Model MAE"
                   },
                   {
                     "fieldName": "bias",
-                    "displayName": "Bias: actual \u2212 forecast"
+                    "displayName": "Bias: forecast \u2212 actual"
                   },
                   {
                     "fieldName": "status",
@@ -1317,7 +1529,7 @@
             "name": "decision_boundary",
             "multilineTextboxSpec": {
               "lines": [
-                "**Keep the decisions separate:** SPC candidates are process investigations. Drift warnings concern model usefulness. The exercise never changes the SPC queue. No notification, automatic retraining or promotion occurs here.\n\n**Refresh:** This dashboard reads saved notebook results. Run all retrains the demo; production monitoring would reuse a registered model and join new actuals independently."
+                "**Keep the decisions separate:** SPC candidates are process investigations. Drift warnings concern model usefulness. The exercise never changes the SPC queue. No notification, automatic retraining or promotion occurs here.\n\n**Refresh:** This dashboard reads saved notebook results. Run all reruns the demonstration; reuse mode loads a saved model for scoring. Production monitoring would join newly arrived actuals independently. Review signals do not authorize training or promotion."
               ]
             }
           },

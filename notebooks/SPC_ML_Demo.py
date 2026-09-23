@@ -6,7 +6,7 @@
 # MAGIC %md
 # MAGIC # SPC signal detection — AttainX demo
 # MAGIC
-# MAGIC This notebook generates fictional operational counts inside AttainX. It reads no external data.
+# MAGIC This notebook generates synthetic application-receipt and workflow-completion events for a USCIS-related teaching example. It reads no agency records or external data. It does not model eligibility, adjudication, individual applicants or agency performance.
 # MAGIC It demonstrates XmR, CUSUM, and EWMA control rules; a classifier that reproduces their
 # MAGIC same-window label; a separate **next-business-day count forecast**; chronological evaluation;
 # MAGIC analyst review candidates; five-day ARIMA/Holt-Winters forecasts; Isolation Forest;
@@ -29,13 +29,16 @@
 # MAGIC ### Cell 1: Set the rules for this run
 # MAGIC **Plain English:** Choose the random seed, how much history each rule reads, and whether to save results.
 # MAGIC **Technique:** Python libraries handle tables, numerical calculations, charts, and random forest models.
-# MAGIC **Check:** `OUTPUT_SCHEMA` and `UC_MODEL_NAME` are empty by default, so Delta writes and model registration are off. MLflow still needs experiment write access when installed.
+# MAGIC **Check:** `OUTPUT_SCHEMA` is `ml_statistical_process_controls.demo_schema`. `SPC_DEMO_LOCAL_TEST=1` disables Delta and MLflow writes during local validation. `UC_MODEL_NAME` remains empty until candidate registration is configured.
 # MAGIC **Developer note:** Change the settings here, then rerun all cells so labels, splits, charts, and logged metrics agree.
 
 # COMMAND ----------
 
 # DBTITLE 1,Configuration and imports
 import re
+import os
+from pathlib import Path
+import sys
 import warnings
 
 import matplotlib.pyplot as plt
@@ -57,11 +60,13 @@ CUSUM_K_FACTOR = 0.5
 CUSUM_H_MULTIPLIER = 4.77
 EWMA_LAMBDA = 0.10
 EWMA_L = 2.703
-DATASET_ID = f"attainx_demo_v2_seed{SEED}"
+DATASET_ID = f"attainx_applications_v3_seed{SEED}"
 
-# Optional: set to an existing Unity Catalog catalog.schema after the first successful run.
-# Example: OUTPUT_SCHEMA = "demo_catalog.spc_demo". Empty means charts/MLflow only.
-OUTPUT_SCHEMA = ""
+# Dedicated demonstration destination. Local test entry points MUST set the explicit override.
+OUTPUT_SCHEMA = "ml_statistical_process_controls.demo_schema"
+LOCAL_TEST = os.environ.get("SPC_DEMO_LOCAL_TEST") == "1"
+if LOCAL_TEST:
+    OUTPUT_SCHEMA = ""
 # Optional: set to a permitted three-part catalog.schema.model name to register the model.
 # Leave empty until the notebook and MLflow experiment work.
 UC_MODEL_NAME = ""
@@ -96,9 +101,9 @@ def show_dataframe_stage(title, frame, columns, *, grain, change, sample=None):
 
 # MAGIC %md
 # MAGIC ### Cell 2: Make a safe example dataset
-# MAGIC **Plain English:** Create three imaginary daily work queues. We plant a few jumps and sustained changes so there is something for the chart to find.
-# MAGIC **Technique:** A seeded NumPy generator makes repeatable fictional time series. Assertions check unique dates and nonnegative counts.
-# MAGIC **Output:** `daily_df` has one count per business day and fictional series. `dataset_id` identifies this demo run.
+# MAGIC **Plain English:** Create over one million synthetic application events across three queues: Intake A and Intake B count application receipts; Completions A counts completed workflow steps. Receipts and completions are independent event streams, not a linked case lifecycle. We plant a few shifts for statistical review.
+# MAGIC **Technique:** A seeded process generates event volumes, then materializes individual event rows with unique IDs and timestamps. Normalize those rows and aggregate them to daily counts. Validate IDs, types, date coverage, nonnegative counts and exact reconciliation.
+# MAGIC **Output:** `raw_events_df` and `prepared_events_df` contain actual event rows; `daily_df` contains only 1,260 daily series observations. A million events does not mean a million independent training examples. `dataset_id` identifies this synthetic run.
 # MAGIC **Developer note:** The planted changes help explain the demo; they are no proof that real agency data behave this way.
 
 # COMMAND ----------
@@ -119,18 +124,61 @@ for series_id, (center, sigma) in series_config.items():
     shift += np.where((t >= 355) & (t < 370), 16, 0)
     spike = np.where(np.isin(t, [105, 220, 319]), 32, 0)
     values = np.maximum(0, np.round(center + weekly_pattern + shift + spike + rng.normal(0, sigma, N_DAYS)))
-    daily_parts.append(pd.DataFrame({"series_id": series_id, "run_date": dates, "daily_count": values.astype(int)}))
-daily_df = pd.concat(daily_parts, ignore_index=True)
-daily_df["source_name"] = "fictional_operational_feed"
+    daily_parts.append(pd.DataFrame({"series_id": series_id, "run_date": dates, "daily_count": values.astype(int) * 10}))
+# Generate actual event rows from the seeded daily process; then derive the analytical
+# counts from those rows. Ten-fold units give a million-row engineering demonstration.
+generation_plan_df = pd.concat(daily_parts, ignore_index=True)
+plan_index = np.repeat(np.arange(len(generation_plan_df)), generation_plan_df.daily_count.to_numpy())
+raw_events_df = pd.DataFrame({
+    "event_id": np.arange(1, len(plan_index) + 1, dtype=np.int64),
+    "series_id": pd.Categorical(generation_plan_df.series_id.to_numpy()[plan_index]),
+    "event_timestamp": generation_plan_df.run_date.to_numpy()[plan_index]
+        + pd.to_timedelta(rng.integers(8 * 3600, 18 * 3600, len(plan_index)), unit="s"),
+})
+raw_events_df["event_type"] = pd.Categorical(np.where(
+    raw_events_df.series_id.eq("Completions A"), "workflow_completion", "application_receipt"))
+assert len(raw_events_df) >= 1_000_000
+assert raw_events_df.event_id.is_unique and raw_events_df.event_id.notna().all()
+assert pd.api.types.is_integer_dtype(raw_events_df.event_id)
+assert pd.api.types.is_datetime64_any_dtype(raw_events_df.event_timestamp)
+assert not raw_events_df.isna().any().any()
+assert set(raw_events_df.event_type) == {"application_receipt", "workflow_completion"}
+prepared_events_df = raw_events_df.assign(run_date=raw_events_df.event_timestamp.dt.normalize())
+assert prepared_events_df.run_date.isin(dates).all()
+assert set(prepared_events_df.series_id) == set(series_config)
+daily_df = prepared_events_df.groupby(["series_id", "run_date"], observed=True).size().rename("daily_count").reset_index()
+daily_df["series_id"] = daily_df.series_id.astype(str)
+daily_df = daily_df.sort_values(["series_id", "run_date"]).reset_index(drop=True)
+expected_counts = generation_plan_df.sort_values(["series_id", "run_date"]).reset_index(drop=True)
+pd.testing.assert_frame_equal(daily_df, expected_counts)
+assert int(daily_df.daily_count.sum()) == len(raw_events_df) == len(prepared_events_df)
+daily_df["source_name"] = "synthetic_application_events"
 daily_df["dataset_id"] = DATASET_ID
 assert daily_df.groupby(["series_id", "run_date"]).size().max() == 1
 assert daily_df["daily_count"].notna().all() and daily_df["daily_count"].ge(0).all()
-print(f"Created {len(daily_df):,} fictitious daily observations across {len(series_config)} series.")
+assert daily_df.groupby("series_id").run_date.nunique().eq(N_DAYS).all()
+dataset_summary = {"event_rows": len(raw_events_df), "daily_rows": len(daily_df),
+                   "series": len(series_config), "business_dates": N_DAYS,
+                   "first_date": str(dates.min().date()), "last_date": str(dates.max().date())}
+print(f"Materialized {len(raw_events_df):,} synthetic event rows; aggregated to {len(daily_df):,} daily observations.")
+print("Scale is event-row count, not training-set size. Keys: event_id; then series_id + run_date.")
 DEMO_PREVIEW_DATES = daily_df.loc[daily_df.series_id == DEMO_SERIES, "run_date"].sort_values().tail(DATAFRAME_PREVIEW_ROWS)
 show_dataframe_stage(
+    "0a. Raw application events — raw_events_df", raw_events_df,
+    ["event_id", "event_timestamp", "series_id", "event_type"], sample=raw_events_df.head(5),
+    grain="one synthetic application-receipt or workflow-completion event; unique event_id",
+    change="START: materialized events with typed timestamp, event ID, queue and event type. No person or decision fields.",
+)
+show_dataframe_stage(
+    "0b. Prepared events — prepared_events_df", prepared_events_df,
+    ["event_id", "event_timestamp", "series_id", "event_type", "run_date"], sample=prepared_events_df.head(5),
+    grain="one event, same event_id and row count as raw input",
+    change="ADD run_date by normalizing event_timestamp; validate all dates against the demonstration business calendar.",
+)
+show_dataframe_stage(
     "1. Starting counts — daily_df", daily_df, ["series_id", "run_date", "daily_count"],
-    grain="one queue on one business date",
-    change="START: date and observed count. These same five run dates anchor the later previews.",
+    grain="one queue on one business date; unique series_id + run_date",
+    change="GROUP event rows by series_id + run_date; daily_count is COUNT of events. Counts reconcile exactly to event-row count.",
 )
 
 # COMMAND ----------
@@ -276,8 +324,9 @@ assert train_df["signal_detected"].nunique() == 2 and test_df["signal_detected"]
 X_train, X_test = train_df[feature_cols], test_df[feature_cols]
 y_train = train_df["signal_detected"].astype(int)
 y_test = test_df["signal_detected"].astype(int)
-model = RandomForestClassifier(n_estimators=100, max_depth=8, min_samples_leaf=3,
-                               class_weight="balanced", random_state=SEED, n_jobs=-1)
+CLASSIFIER_CONFIG = dict(n_estimators=100, max_depth=8, min_samples_leaf=3,
+                         class_weight="balanced", random_state=SEED, n_jobs=-1)
+model = RandomForestClassifier(**CLASSIFIER_CONFIG)
 model.fit(X_train, y_train)
 pred = model.predict(X_test)
 prob = model.predict_proba(X_test)[:, 1]
@@ -348,6 +397,7 @@ forecast_values = np.maximum(0, forecast_model.predict(forecast_X.loc[forecast_t
 forecast_actual = forecast_df.loc[forecast_test, "daily_count"].to_numpy()
 forecast_metrics = {
     "forecast_mae": float(mean_absolute_error(forecast_actual, forecast_values)),
+    "forecast_bias": float(np.mean(forecast_values - forecast_actual)),
     "last_value_baseline_mae": float(mean_absolute_error(
         forecast_actual, forecast_df.loc[forecast_test, "last_value"])),
     "trailing_mean_baseline_mae": float(mean_absolute_error(
@@ -614,7 +664,7 @@ ax.legend(); fig.autofmt_xdate(); plt.tight_layout(); plt.show()
 # MAGIC %md
 # MAGIC ### Cell 11: Compare classifiers across five later periods
 # MAGIC **Plain English:** Compare random forest and logistic regression over several time periods, not just one favorable split.
-# MAGIC **Method:** Five expanding training windows, shared date boundaries across series, and a 25-business-day separation of measurement windows. Scaling fits only on training rows. Compare each fold with a training-majority baseline.
+# MAGIC **Method:** Five expanding training windows, shared date boundaries across series, and a 25-business-day separation of measurement windows. Scaling fits only on training rows. The RF settings exactly match Cell 5; these later-period folds are a separate diagnostic, not an untouched holdout for model selection. Compare each fold with a training-majority baseline.
 # MAGIC **Decision:** Both models still imitate known rules. Fold scores and feature importance describe this experiment, not mission value or causality.
 
 # COMMAND ----------
@@ -636,7 +686,7 @@ for fold, start in enumerate(np.linspace(155, len(unique_dates)-30, 5, dtype=int
     assert tr.window_end.max() < te.window_start.min()
     fold_specs.append((fold, fold_train, fold_test))
     candidates = {
-        "Random forest": RandomForestClassifier(n_estimators=60, max_depth=7, min_samples_leaf=3, random_state=SEED, n_jobs=-1),
+        "Random forest": RandomForestClassifier(**CLASSIFIER_CONFIG),
         "Logistic regression": make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000, random_state=SEED)),
     }
     for name, candidate in candidates.items():
@@ -653,6 +703,9 @@ for fold, start in enumerate(np.linspace(155, len(unique_dates)-30, 5, dtype=int
         fold_predictions.extend([{"fold":fold,"model":name,"truth":bool(y),"prediction":bool(p)} for y,p in zip(te.signal_detected,calls)])
         if name == "Logistic regression": logistic_model = candidate
 fold_metrics_df = pd.DataFrame(fold_metrics)
+# Save a logistic model fitted on the same training split as the primary RF.
+logistic_model = make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000, random_state=SEED))
+logistic_model.fit(X_train, y_train)
 print(fold_metrics_df.round(3).to_string(index=False))
 importance = permutation_importance(model, X_test, y_test, n_repeats=3, random_state=SEED, scoring="accuracy")
 importance_df = pd.DataFrame({"feature":feature_cols,"accuracy_drop":importance.importances_mean}).sort_values("accuracy_drop", ascending=False)
@@ -714,7 +767,7 @@ forecast_history_df=pd.DataFrame(history_rows)
 forecast_history_df["absolute_error"]=(forecast_history_df.actual-forecast_history_df.prediction).abs()
 selection_cutoff=forecast_history_df.origin_date.max()
 selection_scores=forecast_history_df[forecast_history_df.origin_date<selection_cutoff].groupby("model").absolute_error.mean()
-selected_forecaster=selection_scores.drop("Seasonal naive").idxmin()
+selected_forecaster=selection_scores.idxmin()
 five_day_metrics_df=forecast_history_df.groupby("model").absolute_error.agg(["mean","count"]).rename(columns={"mean":"mae","count":"forecast_rows"}).reset_index()
 for (sid,office),group in subgroup_df.groupby(["series_id","office"]):
     group=group.sort_values("run_date")
@@ -749,13 +802,14 @@ iso_rows=[]
 for fold,trmask,temask in fold_specs:
     tr,te=signals_df.loc[trmask],signals_df.loc[temask]
     contamination=float(np.clip(tr.signal_detected.mean()*.10,.02,.10))
-    detector=IsolationForest(n_estimators=80,contamination=contamination,random_state=SEED,n_jobs=-1).fit(tr[feature_cols])
+    detector=IsolationForest(n_estimators=100,contamination=contamination,random_state=SEED,n_jobs=-1).fit(tr[feature_cols])
     flags=detector.predict(te[feature_cols])==-1
     iso_rows.append({"fold":fold,"contamination":contamination,"rows":len(te),"anomaly_rate":float(flags.mean()),
                      "rule_agreement":float((flags==te.signal_detected.to_numpy()).mean()),
                      "rule_proxy_f1":f1_score(te.signal_detected,flags,zero_division=0)})
 iso_fold_df=pd.DataFrame(iso_rows)
-iso_model=IsolationForest(n_estimators=100,contamination=.08,random_state=SEED,n_jobs=-1).fit(X_train)
+final_contamination=float(np.clip(y_train.mean()*.10,.02,.10))
+iso_model=IsolationForest(n_estimators=100,contamination=final_contamination,random_state=SEED,n_jobs=-1).fit(X_train)
 anomaly_df=test_df[["series_id","run_date","signal_detected","dataset_id"]].copy()
 anomaly_df["anomaly_score"]=-iso_model.score_samples(X_test)
 anomaly_df["model_anomaly"]=iso_model.predict(X_test)==-1
@@ -854,12 +908,16 @@ def upsert_history(existing,incoming,keys):
 forecast_ledger_df=upsert_history(pd.DataFrame(),forecast_history_df,HISTORY_KEYS)
 assert len(upsert_history(forecast_ledger_df,forecast_history_df,HISTORY_KEYS))==len(forecast_ledger_df)
 def assessment_metrics(group):
+    group = group.loc[np.isfinite(group[["prediction", "actual"]]).all(axis=1)].copy()
+    if group.empty:
+        return dict(n_actuals=0, mae=np.nan, rmse=np.nan, smape=np.nan, bias=np.nan, direction_accuracy=np.nan)
+    direction_rows = group.loc[np.isfinite(group.origin_count)]
     err=group.prediction-group.actual
     denominator=(group.prediction.abs()+group.actual.abs())/2
     smape=np.where(denominator>1e-9,err.abs()/denominator.clip(lower=1e-9),0).mean()*100
     return {"n_actuals":len(group),"mae":float(err.abs().mean()),"rmse":float(np.sqrt((err**2).mean())),
             "smape":float(smape),"bias":float(err.mean()),
-            "direction_accuracy":float((np.sign(group.prediction-group.origin_count)==np.sign(group.actual-group.origin_count)).mean()) if len(group)>=2 else np.nan}
+            "direction_accuracy":float((np.sign(direction_rows.prediction-direction_rows.origin_count)==np.sign(direction_rows.actual-direction_rows.origin_count)).mean()) if len(direction_rows)>=2 else np.nan}
 assessment_rows=[]
 for keys,g in forecast_ledger_df.groupby(["series_id","model","origin_date"]):
     assessment_rows.append(dict(zip(["series_id","model","origin_date"],keys))|assessment_metrics(g))
@@ -868,7 +926,7 @@ assessment_df["previous_smape"]=assessment_df.groupby(["series_id","model"]).sma
 assessment_df["latest_origin"]=assessment_df.groupby(["series_id","model"]).origin_date.transform("max")
 def retraining_advice(n, current, previous, latest=True):
     if not latest:return "superseded"
-    if n<3:return "insufficient_data"
+    if n<3 or not np.isfinite(current):return "insufficient_data"
     if pd.notna(previous) and current>40 and current>previous:return "architecture_review"
     if pd.notna(previous) and current>previous*1.10:return "review_for_retraining"
     if pd.notna(previous) and current<previous*.95:return "improving"
@@ -982,12 +1040,14 @@ try:
 except ImportError:
     mlflow = None
 
-if mlflow is None:
-    print("MLflow is not installed here. In Databricks, this cell logs the model and metrics.")
+if LOCAL_TEST or mlflow is None:
+    print("MLflow logging is disabled for local tests or unavailable in this environment.")
 else:
     # Databricks notebooks automatically use their notebook experiment.
     # MLflow 2 uses artifact_path; MLflow 3 uses name for logged models.
-    model_path_arg = "name" if "name" in signature(mlflow.sklearn.log_model).parameters else "artifact_path"
+    model_parameters = signature(mlflow.sklearn.log_model).parameters
+    model_path_arg = "name" if "name" in model_parameters else "artifact_path"
+    model_serialization_args = {"serialization_format": "cloudpickle"} if "serialization_format" in model_parameters else {}
     with mlflow.start_run(run_name="attainx_spc_demo_models") as run:
         mlflow.log_params({"source": "fictional", "seed": SEED, "window": WINDOW,
                            "dataset_id": DATASET_ID, "baseline_days": BASELINE_DAYS, "model": "random_forest",
@@ -995,16 +1055,16 @@ else:
         mlflow.log_metrics(metrics)
         mlflow.log_metrics(forecast_metrics)
         classifier_model_info = mlflow.sklearn.log_model(
-            model, **{model_path_arg: "model"}, input_example=X_train.head(2)
+            model, **{model_path_arg: "model"}, input_example=X_train.head(2), **model_serialization_args
         )
         forecast_model_info = mlflow.sklearn.log_model(
-            forecast_model, **{model_path_arg: "count_forecast"}, input_example=forecast_X.head(2)
+            forecast_model, **{model_path_arg: "count_forecast"}, input_example=forecast_X.head(2), **model_serialization_args
         )
         logistic_model_info = mlflow.sklearn.log_model(
-            logistic_model, **{model_path_arg: "logistic_classifier"}, input_example=X_train.head(2)
+            logistic_model, **{model_path_arg: "logistic_classifier"}, input_example=X_train.head(2), **model_serialization_args
         )
         anomaly_model_info = mlflow.sklearn.log_model(
-            iso_model, **{model_path_arg: "isolation_forest"}, input_example=X_train.head(2)
+            iso_model, **{model_path_arg: "isolation_forest"}, input_example=X_train.head(2), **model_serialization_args
         )
         mlflow.log_metrics({"five_day_" + row.model.lower().replace("-", "_").replace(" ", "_") + "_mae": float(row.mae)
                             for row in five_day_metrics_df.itertuples()})
@@ -1026,12 +1086,30 @@ else:
                 print("Registered demo candidate:", name, "version", registered.version)
             print("No production alias changed. Lifecycle and rollback exercises remain local.")
 
+# Save a portable inference bundle when the companion helper is available. A manually
+# imported notebook still runs without that file; MLflow remains its saved-model route.
+helper_dir = Path(__file__).resolve().parent if "__file__" in globals() else Path.cwd()
+if not (helper_dir / "model_reuse.py").exists():
+    helper_dir = Path.cwd() / "notebooks"
+saved_forecast_manifest = None
+if (helper_dir / "model_reuse.py").exists():
+    sys.path.insert(0, str(helper_dir))
+    from model_reuse import save_forecast_bundle
+    saved_forecast_manifest = save_forecast_bundle(
+        forecast_model, forecast_X.loc[forecast_test].head(12),
+        os.environ.get("SPC_DEMO_MODEL_DIR", "artifacts/saved_forecast"),
+        model_uri=forecast_model_info.model_uri if "forecast_model_info" in globals() else None,
+    )
+    print("Saved forecast bundle with ordered numeric input contract; use SPC_Model_Scoring.py to score without training.")
+else:
+    print("Portable bundle helper absent: the separate scoring notebook is NOT ready. Upload model_reuse.py as a Python file alongside this notebook and rerun to create the bundle and manifest. MLflow logging alone does not create that bundle.")
+
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ### Cell 20: Optionally retain queryable demo history
 # MAGIC **Plain English:** Save the fictional inputs and results for SQL inspection after confirming a dedicated writable demo schema.
-# MAGIC **Method:** Keyed Delta MERGE preserves different forecast origins and replaces an identical replay, instead of deleting all previous runs. Default is off.
+# MAGIC **Method:** Keyed Delta MERGE preserves different forecast origins and replaces an identical replay, instead of deleting all previous runs. The configured destination is the dedicated demonstration schema; explicit local-test mode disables writes.
 # MAGIC **Boundary:** A new dedicated demo schema is recommended. This cell does not migrate incompatible old table schemas. Local tests check the merge contract; real Spark/Delta execution needs workspace verification.
 
 # COMMAND ----------
@@ -1085,8 +1163,8 @@ else:
 # MAGIC **Plain English:** Compare three numeric model inputs with their training distributions. Separately, compare forecast errors once actual counts arrive.
 # MAGIC **Method:** Three nonoverlapping 25-business-day holdout windows per series. The first is the performance reference; the next two are monitoring periods. The trained one-day model stays frozen.
 # MAGIC **Input drift:** Wasserstein distance divided by training standard deviation summarizes distribution change. Above 0.5 is an illustrative investigation threshold, not a significance test. We monitor `last_value`, `window_std` and `trend`, not every input.
-# MAGIC **Performance drift:** MAE is average absolute error in count units. Review after two consecutive complete windows exceed reference MAE by 25%. At least 20 matched actuals are required per window. Thresholds need calibration on real history.
-# MAGIC **Exercise:** A separately labeled scenario adds 35 counts to outcomes in the two monitoring windows. Inputs and saved predictions stay unchanged. This tests the detector; it is not a new fitted model or a forecast backtest.
+# MAGIC **Performance drift:** Bias is predicted minus actual; positive means overprediction. MAE is average absolute error in count units. Review after two consecutive complete windows exceed reference MAE by 25%. At least 20 matched actuals are required per window. Thresholds need calibration on real history.
+# MAGIC **Exercise:** A separately labeled scenario adds 350 counts to outcomes in the two monitoring windows. Inputs and saved predictions stay unchanged. This tests the detector; it is not a new fitted model or a forecast backtest.
 # MAGIC **Decision:** Investigate data quality, seasonality and operational changes before retraining. These diagnostics do not establish concept drift or its cause.
 
 # COMMAND ----------
@@ -1114,7 +1192,7 @@ def input_shift_score(reference, current):
     return float(wasserstein_distance(reference, current) / scale)
 
 def performance_status(n_actuals, reference_n, reference_mae, current_mae, previous_worse, window_number):
-    if min(n_actuals, reference_n) < DRIFT_MIN_ACTUALS:
+    if min(n_actuals, reference_n) < DRIFT_MIN_ACTUALS or not np.isfinite([reference_mae, current_mae]).all():
         return "Insufficient actuals", False
     if window_number == 0:
         return "Reference window", False
@@ -1124,6 +1202,10 @@ def performance_status(n_actuals, reference_n, reference_mae, current_mae, previ
         return "Review for retraining", True
     return ("Watch: one worse window" if worse else "Within demo tolerance"), bool(worse)
 
+RUN_GENERATED_AT = pd.Timestamp.now(tz="UTC").isoformat()
+MODEL_IDENTITY = (forecast_model_info.model_uri if "forecast_model_info" in globals() else
+                  "local_sha256:" + saved_forecast_manifest["model_sha256"] if saved_forecast_manifest else
+                  "in_memory_unregistered_one_day_rf_seed42")
 drift_dates = np.sort(forecast_results_df.run_date.unique())
 drift_date_windows = [drift_dates[i:i + DRIFT_WINDOW] for i in range(0, len(drift_dates), DRIFT_WINDOW)]
 drift_input_rows, drift_performance_rows, drift_daily_parts = [], [], []
@@ -1139,10 +1221,10 @@ for series_id, result_group in forecast_results_df.groupby("series_id"):
             current["window_number"] = window_number
             current["evaluation_actual"] = current.daily_count.astype(float)
             if scenario == "Performance drift exercise" and window_number > 0:
-                current["evaluation_actual"] += 35.0
-            current["model_error"] = current.evaluation_actual - current.predicted_count
-            current["baseline_error"] = current.evaluation_actual - current.trailing_mean_baseline
-            valid = current[["evaluation_actual", "predicted_count", "trailing_mean_baseline"]].notna().all(axis=1)
+                current["evaluation_actual"] += 350.0
+            current["model_error"] = current.predicted_count - current.evaluation_actual
+            current["baseline_error"] = current.trailing_mean_baseline - current.evaluation_actual
+            valid = np.isfinite(current[["evaluation_actual", "predicted_count", "trailing_mean_baseline"]]).all(axis=1)
             matched = current.loc[valid]
             n_actuals = len(matched)
             mae = float(matched.model_error.abs().mean())
@@ -1158,7 +1240,11 @@ for series_id, result_group in forecast_results_df.groupby("series_id"):
                 "review_threshold": max(reference_mae, 1.0) * DRIFT_MAE_RATIO,
                 "baseline_mae": float(matched.baseline_error.abs().mean()),
                 "bias": float(matched.model_error.mean()), "status": status,
-                "model_version": "one_day_rf_seed42_frozen",
+                "model_version": "one_day_rf_seed42_frozen", "model_type": "RandomForestRegressor",
+                "model_identity": MODEL_IDENTITY, "run_generated_at": RUN_GENERATED_AT,
+                "reference_start": pd.Timestamp(drift_date_windows[0][0]),
+                "reference_end": pd.Timestamp(drift_date_windows[0][-1]),
+                "training_start": reference_inputs.run_date.min(), "training_end": reference_inputs.run_date.max(),
             })
             drift_daily_parts.append(current)
             current_inputs = forecast_df[forecast_df.series_id.eq(series_id) & forecast_df.run_date.isin(window_dates)]
@@ -1168,6 +1254,8 @@ for series_id, result_group in forecast_results_df.groupby("series_id"):
                     "dataset_id": DATASET_ID, "series_id": series_id, "scenario": scenario,
                     "window_number": window_number, "window_end": pd.Timestamp(window_dates[-1]),
                     "feature": feature, "shift_score": score, "threshold": DRIFT_INPUT_THRESHOLD,
+                    "reference_start": reference_inputs.run_date.min(), "reference_end": reference_inputs.run_date.max(),
+                    "window_start": pd.Timestamp(window_dates[0]),
                     "reference_n": int(reference_inputs[feature].notna().sum()),
                     "current_n": int(current_inputs[feature].notna().sum()),
                     "missing_rate": float(current_inputs[feature].isna().mean()),
@@ -1223,6 +1311,7 @@ def dashboard_records(frame):
 
 dashboard_payload = {
     "dataset": DATASET_ID,
+    "dataset_summary": dataset_summary,
     "performance": dashboard_records(drift_performance_df),
     "inputs": dashboard_records(drift_inputs_df),
     "daily": dashboard_records(drift_daily_df),
@@ -1232,13 +1321,14 @@ DASHBOARD_HTML = r'''<!doctype html><html lang="en"><head><meta charset="utf-8">
 <style>
 *{box-sizing:border-box}body{margin:0;background:#f2f5f7;color:#132f42;font:15px/1.5 system-ui,-apple-system,sans-serif}main{max-width:1240px;margin:auto;padding:28px}h1{font-size:27px;letter-spacing:-.7px;margin:0}h2{font-size:18px;margin:0 0 8px}p{margin:6px 0;color:#526675}.top,.controls,.tabs,.legend{display:flex;align-items:center;gap:18px;flex-wrap:wrap}.top{justify-content:space-between}.tag{background:#e0ecf3;padding:5px 10px;border-radius:6px;font-size:12px}.controls{margin:22px 0 14px}.controls label{font-size:12px;font-weight:650;display:grid;gap:5px}select,button{font:inherit;border:1px solid #bccbd4;border-radius:6px;background:white;color:#163b52;padding:8px 12px}button{cursor:pointer}button:focus-visible,select:focus-visible{outline:3px solid #2687c3;outline-offset:2px}.tabs{border-bottom:1px solid #ced9df;gap:5px;margin:18px 0}.tabs button{border:0;border-radius:6px 6px 0 0;background:transparent}.tabs button[aria-selected=true]{background:#123f5c;color:white}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:16px 0}.card,.panel{background:white;border:1px solid #dee6eb;border-radius:10px;padding:20px}.metric{font-size:29px;font-weight:650;line-height:1.3;margin:7px 0}.label{font-size:12px;color:#526675}.grid{display:grid;grid-template-columns:1.15fr 1fr;gap:16px}.panel{margin-bottom:16px;min-width:0}.notice{border-left:4px solid #227c9d;background:#e5f1f6;padding:12px 16px;margin-bottom:16px}.exercise{background:#fff0d9;border-color:#b67a22}.good{color:#087d71}.warn{color:#9a541e}.badge{font-size:13px;font-weight:650}.chart{width:100%;height:auto;display:block}.legend{font-size:12px;gap:16px}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:10px 8px;border-bottom:1px solid #e5ebef}th{font-size:11px;color:#526675;white-space:nowrap}td:last-child{min-width:170px}.scroll{overflow:auto}.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.step{border-top:3px solid #168d81;padding-top:12px}.step strong{display:block}.step p{font-size:13px}.foot{font-size:12px;margin-top:18px}section[hidden]{display:none}svg text{font-family:system-ui;font-size:11px;fill:#526675}.empty{padding:30px;text-align:center}@media(max-width:800px){main{padding:16px}.grid,.cards,.steps{grid-template-columns:1fr}.metric{font-size:25px}h1{font-size:23px}.top{gap:8px}}
 </style></head><body><main>
-<div class="top"><h1>SPC & model monitoring</h1><span class="tag">AttainX · Fictional demo data</span></div>
-<p>Are operations changing, are predictions still useful, and what should we do next?</p>
+<div class="top"><h1>SPC & model monitoring</h1><span class="tag">AttainX · Synthetic application events</span></div>
+<p>Are operations changing, are predictions still useful, and what should we do next?</p><p>Intake A and B count application receipts; Completions A counts workflow completion events. No adjudication or agency records.</p>
 <div class="controls"><label>Work queue<select id="series"></select></label><label>Evidence<select id="scenario"><option>Recorded replay</option><option>Performance drift exercise</option></select></label><span class="label" id="period"></span></div>
 <div id="notice" class="notice"></div>
-<nav class="tabs" aria-label="Dashboard sections" role="tablist"><button id="tab-overview" role="tab" aria-controls="overview" aria-selected="true" data-tab="overview">1 · Overview</button><button id="tab-drift" role="tab" aria-controls="drift" aria-selected="false" data-tab="drift">2 · Detect drift</button><button id="tab-decisions" role="tab" aria-controls="decisions" aria-selected="false" data-tab="decisions">3 · Decide what to do</button></nav>
-<section id="overview" role="tabpanel" aria-labelledby="tab-overview"><div class="cards" id="cards"></div><div class="panel"><h2>Actual counts and the forecasts made before them</h2><p>One-day predictions from a frozen random forest. Compare with the trailing five-day mean.</p><div id="daily-chart"></div></div><div class="panel"><h2>How the evidence connects</h2><div class="steps"><div class="step"><strong>Daily counts</strong><p>One row per queue and business day.</p></div><div class="step"><strong>Historical features</strong><p>Summaries use earlier dates, excluding the day being forecast.</p></div><div class="step"><strong>Rules & predictions</strong><p>SPC finds process changes. The forecast estimates the next count.</p></div><div class="step"><strong>Observed outcomes</strong><p>Join actuals to saved predictions, then assess error and review.</p></div></div></div></section>
+<nav class="tabs" aria-label="Dashboard sections" role="tablist"><button id="tab-overview" role="tab" aria-controls="overview" aria-selected="true" data-tab="overview">1 · Overview</button><button id="tab-drift" role="tab" aria-controls="drift" aria-selected="false" data-tab="drift">2 · Detect drift</button><button id="tab-exercise" role="tab" aria-controls="exercise" aria-selected="false" data-tab="exercise">3 · Drift exercise</button><button id="tab-decisions" role="tab" aria-controls="decisions" aria-selected="false" data-tab="decisions">4 · Review and retrain</button></nav>
+<section id="overview" role="tabpanel" aria-labelledby="tab-overview"><div class="cards" id="cards"></div><div class="panel"><h2>Actual counts and the forecasts made before them</h2><p>One-day predictions from a frozen random forest. Compare with the trailing five-day mean.</p><div id="daily-chart"></div></div><div class="panel"><h2>How the evidence connects</h2><p id="data-scale"></p><div class="steps"><div class="step"><strong>Daily counts</strong><p>One row per queue and business day.</p></div><div class="step"><strong>Historical features</strong><p>Summaries use earlier dates, excluding the day being forecast.</p></div><div class="step"><strong>Rules & predictions</strong><p>SPC finds process changes. The forecast estimates the next count.</p></div><div class="step"><strong>Observed outcomes</strong><p>Join actuals to saved predictions, then assess error and review.</p></div></div></div></section>
 <section id="drift" role="tabpanel" aria-labelledby="tab-drift" hidden><div class="grid"><div class="panel"><h2>Have inputs moved away from training?</h2><p>Latest 25 business days. Distribution distance in training standard-deviation units; larger means more change.</p><div id="input-chart"></div><p class="label">0.5 is a demo investigation threshold. Three numeric features only. Input change alone does not mean the model has failed.</p></div><div class="panel"><h2>Are forecast errors getting worse?</h2><p>Average absolute error (MAE), in counts. Three separate 25-business-day windows.</p><div id="error-chart"></div><p class="label">Review after two consecutive windows above 125% of the reference MAE (one-count floor); at least 20 actuals each. Thresholds are illustrative.</p></div></div><div class="panel"><h2>Error evidence by monitoring window</h2><div id="performance-table" class="scroll"></div></div></section>
+<section id="exercise" role="tabpanel" aria-labelledby="tab-exercise" hidden><div class="panel"><h2>A controlled deterioration exercise</h2><p>Select Performance drift exercise above: after the reference window, add 350 counts to each observed outcome. Inputs, frozen predictions and SPC review episodes do not change.</p><p>This deliberately simulated outcome shift tests the monitoring rule. It is not evidence of actual agency conditions, a new model fit, or a real approval.</p><button id="activate-exercise">Show simulated deterioration</button><div id="exercise-table" class="scroll"></div></div></section>
 <section id="decisions" role="tabpanel" aria-labelledby="tab-decisions" hidden><div class="panel"><h2 id="decision-title"></h2><p id="decision-detail"></p><div class="steps" style="margin-top:22px"><div class="step"><strong>1. Investigate</strong><p>Check missing or late data, workload mix, seasonality and process changes. Confirm actuals are complete.</p></div><div class="step"><strong>2. Train a candidate</strong><p>Use recent, representative, reviewed history and rerun the same feature pipeline. Preserve the current model.</p></div><div class="step"><strong>3. Validate</strong><p>Compare against the current model and simple baseline on later unseen dates, including queue-level results.</p></div><div class="step"><strong>4. Approve & monitor</strong><p>Version the candidate in MLflow, obtain approval, then promote. Retain the prior version for rollback.</p></div></div></div><div class="panel"><h2>SPC review queue · recorded replay only</h2><p>Pending statistical review candidates are separate from model drift warnings. Exercise outcomes do not alter this queue.</p><div id="review-table" class="scroll"></div></div><div class="notice">No automatic retraining, model promotion or notification occurs here. The demonstration shows evidence and a review decision.</div></section>
 <p class="foot" id="source"></p>
 </main><script>
@@ -1247,8 +1337,8 @@ const D=__DASHBOARD_DATA__;const $=id=>document.getElementById(id);const esc=v=>
 function table(rows,cols){if(!rows.length)return '<p class="empty">No records in this selection.</p>';return '<table><thead><tr>'+cols.map(c=>'<th>'+esc(c[1])+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+cols.map(c=>'<td>'+esc(c[2]?c[2](r[c[0]]):r[c[0]])+'</td>').join('')+'</tr>').join('')+'</tbody></table>'}
 function line(rows,xfield,fields){const w=650,h=260,l=48,r=18,t=15,b=43;const times=rows.map(r=>Date.parse(r[xfield]));const lo=Math.min(...times),hi=Math.max(...times);const vals=rows.flatMap(r=>fields.map(f=>r[f[0]])).filter(Number.isFinite);const max=Math.max(1,...vals)*1.10;const x=i=>l+(times[i]-lo)/Math.max(1,hi-lo)*(w-l-r);const y=v=>h-b-v/max*(h-t-b);let svg=`<svg class="chart" role="img" aria-label="${fields.map(f=>esc(f[1])).join(', ')} over time" viewBox="0 0 ${w} ${h}">`;for(let i=0;i<=4;i++){let v=max*i/4;svg+=`<line x1="${l}" y1="${y(v)}" x2="${w-r}" y2="${y(v)}" stroke="#e5ebef"/><text x="${l-8}" y="${y(v)+4}" text-anchor="end">${v.toFixed(0)}</text>`}fields.forEach((f,k)=>{const points=rows.map((row,i)=>Number.isFinite(row[f[0]])?`${x(i)},${y(row[f[0]])}`:null);let segment=[];const flush=()=>{if(segment.length)svg+=`<polyline fill="none" stroke="${colors[k]}" stroke-width="2.3" ${k===2?'stroke-dasharray="5 4"':''} points="${segment.join(' ')}"/>`;segment=[]};points.forEach(p=>p?segment.push(p):flush());flush();if(rows.length<10)rows.forEach((row,i)=>{if(Number.isFinite(row[f[0]]))svg+=`<circle cx="${x(i)}" cy="${y(row[f[0]])}" r="4" fill="${colors[k]}"><title>${esc(date(row[xfield]))}: ${esc(f[1])} ${fmt(row[f[0]])}</title></circle>`})});[...new Set([0,Math.floor((rows.length-1)/2),rows.length-1])].forEach(i=>svg+=`<text x="${x(i)}" y="${h-14}" text-anchor="${i===0?'start':i===rows.length-1?'end':'middle'}">${date(rows[i][xfield])}</text>`);return svg+'</svg><div class="legend">'+fields.map((f,k)=>`<span><i class="dot" style="background:${colors[k]}"></i>${esc(f[1])}</span>`).join('')+'</div>'}
 function bars(rows){const max=Math.max(1,...rows.map(r=>r.shift_score||0))*1.15;const left=110,right=550;let out='<svg class="chart" role="img" aria-label="Input distribution changes compared with training" viewBox="0 0 650 260">';rows.forEach((r,i)=>{let y=30+i*65;out+=`<text x="0" y="${y+17}">${esc(r.feature)}</text><rect x="${left}" y="${y}" width="${Math.max(0,(r.shift_score||0)/max*(right-left))}" height="26" rx="3" fill="${r.shift_score>.5?'#d08029':'#116d88'}"/><text x="${left+(r.shift_score||0)/max*(right-left)+8}" y="${y+17}">${fmt(r.shift_score)}</text>`});const tx=left+.5/max*(right-left);out+=`<line x1="${tx}" x2="${tx}" y1="18" y2="216" stroke="#8a623c" stroke-dasharray="4 4"/><text x="${tx}" y="237" text-anchor="middle">0.5 threshold</text></svg>`;return out}
-function render(){const series=$('series').value,scenario=$('scenario').value;const scope=r=>r.series_id===series&&r.scenario===scenario;const perf=D.performance.filter(scope).sort((a,b)=>a.window_number-b.window_number),latest=perf.at(-1),daily=D.daily.filter(scope).sort((a,b)=>a.run_date.localeCompare(b.run_date)),inputs=D.inputs.filter(r=>scope(r)&&r.window_number===latest.window_number);const exercise=scenario!=='Recorded replay';$('period').textContent=date(daily[0].run_date)+' – '+date(daily.at(-1).run_date)+' · '+daily.length+' matched daily records';$('notice').className='notice'+(exercise?' exercise':'');$('notice').textContent=exercise?'Controlled exercise: add 35 counts to outcomes after the reference window. Predictions and inputs stay frozen. These are scenario results.':'Recorded replay: the original fictional counts and saved predictions. An input shift is a reason to investigate; deteriorating accuracy supplies separate evidence.';$('cards').innerHTML=[['Latest error',fmt(latest.mae)+' counts','Reference '+fmt(latest.reference_mae)+' · simple baseline '+fmt(latest.baseline_mae)],['Matched actuals',latest.n_actuals+' / '+latest.expected_actuals,'Latest window · '+date(latest.window_start)+' – '+date(latest.window_end)],['Review status',latest.status,'Two-window rule · no automatic model change']].map((v,i)=>`<div class="card"><div class="label">${v[0]}</div><div class="metric ${i===2?'badge '+(latest.status==='Review for retraining'?'warn':'good'):''}">${esc(v[1])}</div><p class="label">${esc(v[2])}</p></div>`).join('');$('daily-chart').innerHTML=line(daily,'run_date',[['evaluation_actual',exercise?'Exercise outcome':'Actual count'],['predicted_count','Frozen model forecast'],['trailing_mean_baseline','Trailing five-day mean']]);$('error-chart').innerHTML=line(perf,'window_end',[['mae','Model MAE'],['baseline_mae','Simple baseline MAE'],['review_threshold','Review threshold']]);$('input-chart').innerHTML=bars(inputs);$('performance-table').innerHTML=table(perf,[['window_number','Window',v=>v===0?'0 · Reference':v+' · Monitor'],['window_end','Through',date],['n_actuals','Actuals'],['mae','Model MAE',fmt],['baseline_mae','Baseline MAE',fmt],['bias','Bias (actual − forecast)',fmt],['status','Assessment']]);$('decision-title').textContent=latest.status;$('decision-detail').textContent=latest.status==='Review for retraining'?'Two consecutive windows exceeded the demo error threshold. Open a review; verify data and causes before training a candidate.':'This series has not met the two-window retraining-review rule. Continue monitoring and investigate any input or data-quality warnings.';$('review-table').innerHTML=table(D.reviews.filter(r=>r.series_id===series),[['episode_id','Episode'],['run_date','Started',date],['last_signal_date','Latest signal',date],['signal_windows','Flagged windows'],['disposition','Disposition']]);$('source').textContent='Source: notebook Cells 6, 8 and 21 · '+D.dataset+' · Frozen one-day RF, seed 42 · Historical replay, no live data refresh. Bias above zero means underprediction. Not a concept-drift diagnosis.'}
-document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b===button)));['overview','drift','decisions'].forEach(id=>$(id).hidden=id!==button.dataset.tab)}));$('series').addEventListener('change',render);$('scenario').addEventListener('change',render);render();
+function render(){$('data-scale').textContent=D.dataset_summary.event_rows.toLocaleString()+' materialized event rows aggregate to '+D.dataset_summary.daily_rows.toLocaleString()+' daily series observations. Models train on daily windows, not a million independent examples.';const series=$('series').value,scenario=$('scenario').value;const scope=r=>r.series_id===series&&r.scenario===scenario;const perf=D.performance.filter(scope).sort((a,b)=>a.window_number-b.window_number),latest=perf.at(-1),daily=D.daily.filter(scope).sort((a,b)=>a.run_date.localeCompare(b.run_date)),inputs=D.inputs.filter(r=>scope(r)&&r.window_number===latest.window_number);const exercise=scenario!=='Recorded replay';$('period').textContent=date(daily[0].run_date)+' – '+date(daily.at(-1).run_date)+' · '+daily.length+' matched daily records';$('notice').className='notice'+(exercise?' exercise':'');$('notice').textContent=exercise?'Controlled exercise: add 350 counts to outcomes after the reference window. Predictions and inputs stay frozen. These are scenario results.':'Recorded replay: the original synthetic counts and saved predictions. An input shift is a reason to investigate; deteriorating accuracy supplies separate evidence.';$('cards').innerHTML=[['Latest error',fmt(latest.mae)+' counts','Reference '+fmt(latest.reference_mae)+' · simple baseline '+fmt(latest.baseline_mae)],['Matched actuals',latest.n_actuals+' / '+latest.expected_actuals,'Latest window · '+date(latest.window_start)+' – '+date(latest.window_end)],['Review status',latest.status,'Two-window rule · no automatic model change']].map((v,i)=>`<div class="card"><div class="label">${v[0]}</div><div class="metric ${i===2?'badge '+(latest.status==='Within demo tolerance'?'good':'warn'):''}">${esc(v[1])}</div><p class="label">${esc(v[2])}</p></div>`).join('');$('daily-chart').innerHTML=line(daily,'run_date',[['evaluation_actual',exercise?'Exercise outcome':'Actual count'],['predicted_count','Frozen model forecast'],['trailing_mean_baseline','Trailing five-day mean']]);$('error-chart').innerHTML=line(perf,'window_end',[['mae','Model MAE'],['baseline_mae','Simple baseline MAE'],['review_threshold','Review threshold']]);$('input-chart').innerHTML=bars(inputs);$('performance-table').innerHTML=table(perf,[['window_number','Window',v=>v===0?'0 · Reference':v+' · Monitor'],['window_end','Through',date],['n_actuals','Actuals'],['mae','Model MAE',fmt],['baseline_mae','Baseline MAE',fmt],['bias','Bias (forecast − actual)',fmt],['status','Assessment']]);$('exercise-table').innerHTML=table(D.performance.filter(r=>r.series_id===series&&r.scenario==='Performance drift exercise'),[['window_number','Window'],['mae','Simulated MAE',fmt],['reference_mae','Reference MAE',fmt],['status','Assessment']]);$('decision-title').textContent=latest.status;$('decision-detail').textContent=latest.status==='Review for retraining'?'Two consecutive windows exceeded the demo error threshold. Open a review; verify data and causes before training a candidate.':latest.status==='Insufficient actuals'?'Evidence is insufficient or nonfinite. Resolve actuals and coverage before judging model health.':'This series has not met the two-window retraining-review rule. Continue monitoring and investigate any input or data-quality warnings.';$('review-table').innerHTML=table(D.reviews.filter(r=>r.series_id===series),[['episode_id','Episode'],['run_date','Started',date],['last_signal_date','Latest signal',date],['signal_windows','Flagged windows'],['disposition','Disposition']]);$('source').textContent='Model '+latest.model_type+' · '+latest.model_identity+' · Run '+latest.run_generated_at+' · Reference '+date(latest.reference_start)+' to '+date(latest.reference_end)+' · Source: notebook Cells 6, 8 and 21 · '+D.dataset+' · Frozen one-day RF, seed 42 · Historical replay, no live data refresh. Bias above zero means overprediction. Not a concept-drift diagnosis.'}
+document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b===button)));['overview','drift','exercise','decisions'].forEach(id=>$(id).hidden=id!==button.dataset.tab)}));$('activate-exercise').addEventListener('click',()=>{$('scenario').value='Performance drift exercise';render()});$('series').addEventListener('change',render);$('scenario').addEventListener('change',render);render();
 </script></body></html>'''.replace("__DASHBOARD_DATA__", json.dumps(dashboard_payload, allow_nan=False).replace("<", "\\u003c"))
 if "displayHTML" in globals():
     displayHTML(DASHBOARD_HTML)

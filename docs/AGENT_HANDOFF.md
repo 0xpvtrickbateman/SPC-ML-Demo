@@ -1,13 +1,15 @@
-# SPC ML Demo continuation
+# Continuation guide
 
-The current deliverable is the expanded **20-cell notebook**, 22-slide deck with notes, and [talking points](talking-points.md). See [runbook](presentation-runbook.md) for evidence and [reference mapping](reference-mapping.md) for exact simplifications. Those documents supersede the earlier ten-cell handoff.
+Read [requirements coverage](requirements-coverage.md), [operator runbook](presentation-runbook.md) and [job setup](job-setup.md) first. Verify the current branch, source SHA and dirty state before editing. Do not assume a branch name or old pull request identifies the current deliverable. Preserve other contributors' changes.
 
-Repository: `0xpvtrickbateman/SPC-ML-Demo`. Work is on `codex/presentation-validation`, with draft PR #1; verify branch and SHA before pulling. Do not assume `main` contains draft changes.
+The simple story is synthetic USCIS-related application volume, unusual activity, then analyst review. All source records and metadata are fabricated. Keep SPC rules, ML rule-label classification, anomaly scoring and actual future-count forecasting distinct. The classifier has proxy labels, not verified incidents. Report measured comparisons even when a baseline or logistic regression wins.
 
-The demonstration uses fictional counts and fixture metadata. Original USCIS reference exports remain private and are not executed or committed. All major reference workflow areas now have a compact representation. Exact agency loaders/dimensions, live metadata, separately deployed inference, delivery and production registry transactions remain out of scope.
+The training notebook has 22 executable cells. Source code and its runtime manifests are authoritative for row counts and table keys. Never copy metrics from an earlier dataset into a new deck or runbook. Preserve the event-to-daily and event-to-office reconciliation checks. Preserve chronological boundaries, future target dates, forecast origins, frozen scoring and pending human review.
 
-Run the three tests listed in README in the locked Python 3.12 environment. The smoke test executes all models, history/retraining and review exercises. MLflow and Delta checks use simulated APIs. A successful target Databricks run, actual artifacts, tables, jobs and SQL dashboard still need workspace verification.
+Training and independent saved-model scoring are separate entrypoints; see job setup for their commands. Retain the artifact manifest and versioned model bundle used for scoring. MLflow and registry integration is optional; an independently loadable artifact is necessary for reuse. Do not describe a rerun of all training cells as inference-only.
 
-Preserve the distinction between historical rule imitation, count forecasting and anomaly scoring. The classifier loses the simple accuracy baseline; use direct rules. Forecast advantages are local demo evidence only. Lifecycle and reviewer records are exercises, not real approval. Notifications are never sent.
+The native dashboard default is `ml_statistical_process_controls.demo_schema`. The training notebook defaults to that Delta destination. Local execution requires `SPC_DEMO_LOCAL_TEST=1`; an analytical native run can explicitly set `OUTPUT_SCHEMA = ""`. Native import, all dataset queries, warehouse permissions and rendered widgets must be checked in the target workspace before claiming platform readiness. Contract doubles and local HTML are useful evidence but do not replace that check.
 
-Speaker notes and the separate talking-points file should remain synchronized. The full notebook still fits a short oral by using the seven-minute path, with detailed cells available for questions. The 14-question mapping is from the supplied handoff; a verified past-client example of declining AI is still needed for question 12.
+Human investigation precedes retraining. A candidate needs later-date evaluation, sufficient actuals, a baseline comparison and real approval before promotion. Retain the previous version and a tested rollback path. The repository's disposition and rollback rows are exercises; notices are prepared but never sent. No shared file should contain private discussion provenance, participant details, workspace credentials or unverified historical customer claims.
+
+No production readiness, cloud acceptance, commit or publication should be inferred from local edits or tests. Record remaining gates explicitly in the execution receipt.

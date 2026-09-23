@@ -7,6 +7,7 @@ import runpy
 import numpy as np
 import pandas as pd
 os.environ.setdefault("MPLBACKEND", "Agg")
+os.environ["SPC_DEMO_LOCAL_TEST"] = "1"
 root=Path(__file__).resolve().parents[1]
 with contextlib.redirect_stdout(io.StringIO()) as output:
     state=runpy.run_path(str(root/"notebooks"/"SPC_ML_Demo.py"))
@@ -63,11 +64,11 @@ for name,(frame,keys) in s["DEMO_TABLES"].items():
 # Execute portable dashboard SELECTs against the actual in-memory output schemas.
 import sqlite3
 with sqlite3.connect(":memory:") as connection:
-    for name, (frame, _) in s["DEMO_TABLES"].items():
+    for name, (frame, _) in (s["DEMO_TABLES"] | s["DRIFT_TABLES"]).items():
         output_frame = frame.copy()
         output_frame["dataset_id"] = s["DATASET_ID"]
         output_frame.to_sql(name, connection, index=False)
-    queries = (root/"sql"/"dashboard_queries.sql").read_text().replace("demo_catalog.demo_schema.", "")
+    queries = (root/"sql"/"dashboard_queries.sql").read_text().replace("ml_statistical_process_controls.demo_schema.", "").replace("demo_catalog.demo_schema.", "")
     queries = "\n".join(line for line in queries.splitlines() if not line.lstrip().startswith("--"))
     for query in queries.split(";"):
         if query.strip():
@@ -77,6 +78,43 @@ cells=source.split("# COMMAND ----------")
 code=[(i,c) for i,c in enumerate(cells) if "# DBTITLE 1," in c]
 assert len(code)==22
 for n,(i,c) in enumerate(code,1):assert f"### Cell {n}:" in cells[i-1]
-assert "synthetic" not in source.lower()
+assert 'OUTPUT_SCHEMA = "ml_statistical_process_controls.demo_schema"' in source
+assert s["OUTPUT_SCHEMA"] == "" and s["LOCAL_TEST"] is True
+assert len(s["raw_events_df"]) >= 1_000_000
+assert s["raw_events_df"].event_id.is_unique
+assert len(s["raw_events_df"]) == len(s["prepared_events_df"]) == s["daily_df"].daily_count.sum()
+recomputed=s["prepared_events_df"].groupby(["series_id", "run_date"], observed=True).size().sort_index()
+assert np.array_equal(recomputed.to_numpy(),s["daily_df"].set_index(["series_id","run_date"]).daily_count.sort_index().to_numpy())
+assert s["model"].get_params()["class_weight"] == "balanced"
+assert np.isclose(s["forecast_metrics"]["forecast_bias"],(s["forecast_results_df"].predicted_count-s["forecast_results_df"].daily_count).mean())
+assert s["assessment_metrics"](pd.DataFrame({"prediction":[12.],"actual":[10.],"origin_count":[9.]}))["bias"] == 2.
 print("Expanded smoke test passed: 22 cells, chronological folds, future forecasts, history, lifecycle and replay checks.")
 print(output.getvalue())
+
+assert s["performance_status"](25,25,np.nan,10,False,1)[0] == "Insufficient actuals"
+assert s["performance_status"](25,25,10,np.inf,False,1)[0] == "Insufficient actuals"
+missing=pd.DataFrame({"prediction":[12.,13.,np.inf],"actual":[10.,np.nan,10.],"origin_count":[9.,9.,9.]})
+assert s["assessment_metrics"](missing)["n_actuals"] == 1
+assert s["assessment_metrics"](missing)["bias"] == 2.
+assert s["selected_forecaster"] == s["selection_scores"].idxmin()
+
+# Compact execution receipt for the deck and review; all values come from this run.
+import json
+receipt={"dataset":s["dataset_summary"],"dataset_id":s["DATASET_ID"],"classifier_metrics":s["metrics"],
+         "forecast_metrics":s["forecast_metrics"],"classifier_config":s["CLASSIFIER_CONFIG"],
+         "classifier_train_rows":len(s["train_df"]),"classifier_test_rows":len(s["test_df"]),
+         "forecast_train_rows":int(s["forecast_train"].sum()),"forecast_test_rows":int(s["forecast_test"].sum()),
+         "selected_forecaster":s["selected_forecaster"],"model_manifest":s["saved_forecast_manifest"],
+         "signal_rows":len(signals),"review_episodes":len(s["review_df"]),
+         "isolation_anomaly_rows":int(s["anomaly_df"].model_anomaly.sum()),
+         "isolation_disagreement_rows":int(s["anomaly_df"].disagrees_with_spc.sum()),
+         "isolation_contamination":s["final_contamination"]}
+for name in ["fold_metrics_df","iso_fold_df","five_day_metrics_df","drift_performance_df","daily_df","lifecycle_df","forecast_results_df","train_df","test_df"]:
+    frame=s[name]
+    receipt[name]=json.loads(frame.to_json(orient="records",date_format="iso"))
+(root/".build").mkdir(exist_ok=True)
+(root/".build"/"notebook-metrics.json").write_text(json.dumps(receipt,indent=2,allow_nan=False))
+print("Metrics receipt: .build/notebook-metrics.json")
+
+assert s["retraining_advice"](25,np.nan,10) == "insufficient_data"
+assert np.isnan(s["assessment_metrics"](pd.DataFrame({"prediction":[12.,13.],"actual":[10.,12.],"origin_count":[np.nan,9.]}))["direction_accuracy"])

@@ -1,75 +1,85 @@
-# Presentation rehearsal and evidence record
+# Operator and presenter runbook
 
-“This AttainX demonstration uses fictional daily counts and fixture metadata. SPC highlights changes worth investigating. We compare models with simple baselines, inspect possible explanations, and keep decisions reviewable. These results do not measure USCIS performance.”
+“This demonstration uses synthetic USCIS-related application volumes. Statistical rules highlight unusual activity, and an analyst reviews the evidence. We separately compare models that estimate future counts. All records and metadata are fabricated.”
 
-## Current local evidence
+## Recorded local run
 
-The expanded notebook runs all 22 code cells and produces ten figures. Dataset `attainx_demo_v2_seed42` has 1,260 counts and 915 labeled windows. Dependencies are locked in `requirements-demo-lock.txt`, including statsmodels 0.14.6. The federal-holiday calendar ends the observations on September 8, 2026; future predictions use later business dates.
+Dataset `attainx_applications_v3_seed42` has 1,179,830 raw events, 1,260 daily-series observations and 915 labeled windows. The classification holdout uses 615 training rows and 228 test rows; the one-day forecast uses 615 training rows and 225 test rows. Raw event rows are not independent modeling observations.
 
-| Check | Observed result |
+| Comparison | Recorded synthetic result |
 | --- | --- |
-| Classifier | 75.0% accuracy, 0.917 AUC; always-signal accuracy 78.1% |
-| One-day forecast | MAE 8.9896; trailing mean 9.7262; previous count 10.9867 |
-| Five-fold accuracy | Logistic regression 81.33%; forest 78.40% |
-| Five-day pooled MAE | ARIMA 10.1506; Holt-Winters 10.3774; seasonal naive 12.9222 |
-| Forecast coverage | 270 historical predictions, 75 future total/subgroup predictions |
-| Lifecycle holdout | ARIMA selected on earlier origins; final-origin improvement 22.9%, 15 observations |
-| Review grouping | 479 flagged windows, 30 episodes, latest 15 pending |
-| Isolation Forest | 25 of 228 held-out windows flagged; no verified incident labels |
-| Daily replay | Two prepared notices, four suppressed repeats, no delivery |
-| Local checks | Full execution/invariants; ten dashboard SQL queries in DuckDB; simulated MLflow 2.x/3.x and 19+3-table Delta contracts |
-| Slides | 22 slides, updated notes, package/layout and rendered visual inspection |
-| Target services | Actual Databricks run, MLflow/registry, Delta, schedule and SQL dashboard remain unverified |
+| Single-holdout classifier | 75.0% accuracy versus 78.1% always-signal accuracy |
+| One-day forecast | MAE 90.01 counts versus trailing-mean 97.26 and last-count 109.87 |
+| Five-fold mean classifier accuracy | Logistic regression 81.33%; random forest 77.33% |
+| Five-day lifecycle decision | ARIMA selected using earlier origins; final-origin MAE improvement 22.9% over seasonal naive, only 15 observations |
 
-Metrics from different evaluation schemes are not interchangeable. Five-day selection uses the first five origins; pooled metrics include the held-out sixth origin. Classification imitates a historical rule label. Earlier 90-day reference histories may overlap training history even though measurement windows are separated. Office forecasts are independent and need not add to the total forecast.
+These measurements come from the current executed notebook outputs, not customer history. The classifier candidate is withdrawn; the five-day forecast is advisory. Different evaluation schemes and sample sizes must stay distinct. Recompute this record if source, seed or dependencies change. Local checks also verified fresh-process joblib inference and an actual MLflow 3.16.1 local tracking/URI-load round trip with training forbidden during scoring. This is not target-workspace evidence. There are 22 executable main cells and 19 workflow plus three drift tables. The raw event frames stay in notebook memory.
 
-## Rehearsal order
+## Run in this order
 
-1. Record `git status --short` and `git rev-parse HEAD`. Use the reviewed revision, not an assumed branch tip.
-2. In the isolated local Python 3.12 environment, install `requirements-demo-lock.txt` and run the three commands in README. Confirm all pass.
-3. In the authorized Databricks Git folder, pull that revision or import the source. Verify all 22 numbered explanatory markdown cells render.
-4. Select presentation compute and record its runtime/packages. Install missing dependencies through its allowed process; restart Python when required.
-5. Keep both optional destination strings empty initially. MLflow logging still requires experiment write access when installed. Run all 22 cells.
-6. Inspect ten figures, forecast dates, baseline comparisons, pending queue, hypotheses, history decisions and outbox statuses. Use actual run numbers if they differ from this local record.
-7. Open the MLflow run and all four returned sklearn model URIs. Confirm artifacts can be loaded in the intended environment. Five-day statistical model objects are not logged by this notebook.
-8. If a dedicated writable demo schema is ready, enable `OUTPUT_SCHEMA` and rerun. Confirm all 22 tables match `DEMO_TABLES` and `DRIFT_TABLES` row counts. Rerun again and verify duplicate keys do not appear. Old incompatible schemas need separate migration; do not assume this cell handles them.
-9. Optionally enable a permitted three-part `UC_MODEL_NAME`. Inspect four registered versions, `demo_only` tags and `demo_candidate` aliases. Keep production objects out of scope.
-10. Follow [job setup](job-setup.md) for a manual job run. Use [SQL queries](../sql/dashboard_queries.sql) only after table verification. A notebook dashboard is already available in Cell 18.
-11. Rehearse the seven-minute path below and retain a private execution receipt. Unavailable services should be described as unverified.
+1. Record `git status --short` and `git rev-parse HEAD`. Confirm the notebook, helper, scorer, dashboard and presentation come from the intended reviewed revision.
+2. Create the Python 3.12 environment and run the README checks. Run `MPLBACKEND=Agg python tests/model_reuse_test.py` for independent artifact reuse. Read test output; commands in a guide are not proof of passing execution.
+3. Train and save the bundle using [job setup](job-setup.md), then run the separate scoring entrypoint in a fresh process. Verify prediction parity and model identity. Retain the bundle and manifest with the run receipt.
+4. For Databricks, use the repository Git folder with its helper files, serverless notebook compute for the default-storage catalog `ml_statistical_process_controls`, and a persistent artifact directory. Verify serverless availability and permissions. Run all 22 main cells, then the separate scoring notebook. Record local versus actual MLflow loading accurately.
+5. Enable the dedicated Delta destination only after checking permissions. Reconcile all runtime manifests and keys, then import the native dashboard and run all ten datasets using a serverless SQL warehouse for this default-storage catalog. Inspect all four content pages and the queue filter. See [dashboard guide](../dashboards/README.md).
+6. Rehearse the story below using the actual measured comparisons and artifact identities. If service verification fails, use the local preview and retained output, explicitly labeled as local evidence.
 
-## Seven-minute presentation path
+## Seven-minute path
 
-| Time | Show | Say |
+| Time | Show | Explain |
 | --- | --- | --- |
-| 0:00–0:40 | Cells 1–4; slides 1–6 | Fictional counts, explicit calendar, three checks; a signal invites review. |
-| 0:40–1:40 | Cells 5–8; slides 7–9 | Classifier loses a simple baseline. Separate one-day forecast improves MAE. Keep the rules. |
-| 1:40–2:40 | Cells 9–13; slides 10–13 | Zones and office shifts add context; compare models across time; show five actual future dates. |
-| 2:40–3:40 | Cells 14–15; slides 14–15 | Trace five upstream hops, inspect freshness and events, label the explanation as a hypothesis. |
-| 3:40–4:50 | Cells 16–17; slides 16–17 | Preserve forecast origins; reject insufficient/stale evidence; rehearse selecting and withdrawing a candidate. |
-| 4:50–5:50 | Cell 18; slide 18 | Daily replay prepares one notice per episode and suppresses repeats; no message is sent. |
-| 5:50–7:00 | Cells 19–20; slides 19–22 | Show verified artifacts if available. Separate local evidence from live services and agency acceptance. |
+| 0:00–0:50 | Cells 1–4 and dataframe previews | Synthetic applications aggregate into daily volumes. Large event count does not equal independent daily training observations. SPC applies statistical rules. |
+| 0:50–1:40 | Cells 8–10, 14–15 | A signal becomes a review episode. Office mix, source freshness and events suggest questions; none proves cause. |
+| 1:40–2:40 | Cells 5–6, 11–13 | Compare classifier alternatives and baselines. The proxy label differs from future counts; forecast MAE is in count units. Show the measured winner or baseline honestly. |
+| 2:40–3:30 | Cell 12 | Predictions after the last observed date are actual future-count forecasts; historical backtests estimate performance. |
+| 3:30–4:20 | Cell 19 and separate scorer | A saved artifact can be loaded in another process without training. Show identity, feature contract and prediction parity. |
+| 4:20–5:30 | Cells 16–17, 21–22 and dashboard | Separate input drift from worsening error. Investigate first, then evaluate a candidate, seek human approval and retain rollback. |
+| 5:30–7:00 | Review queue and verified native dashboard, or labeled local fallback | Analyst owns the decision. Notices are unsent. Identify exactly which platform steps are verified and which remain pending. |
 
-[Detailed slide-by-slide talking points](talking-points.md) repeat the deck speaker notes for quick access. The oral-question mapping follows the supplied handoff, not an independently verified RFI. A verified past-client example of declining AI is still needed for question 12. Staffing, ownership, contract rights and authorization need their own evidence.
+An alternate presenter should read the opening statement, follow these rows, and use the Q&A below. If compute fails, open `dashboards/preview.html`, the deck and the retained run receipt. State that the preview is generated locally and that displayed metrics are from the recorded run. Do not improvise a live success or an agency outcome.
 
-## Private execution receipt
+## Technical Q&A
 
-Keep workspace identifiers and reference exports outside the public repository.
+**Is SPC machine learning?** No. XmR, CUSUM and EWMA are statistical rules. ML is a separate experiment or forecasting method.
+
+**What is the classifier's label?** Whether any selected SPC rule fired on a historical measurement window. It is a proxy label, not a verified incident. Learning to copy a rule does not establish business value over running the rule directly.
+
+**What does the forecast predict?** A count on a later business date. The one-day branch uses features from preceding observations; the five-day branch retains an origin and explicit target dates. These outputs are distinct from anomaly scores and review labels.
+
+**How is leakage controlled?** Dates split chronologically across all series, with a 25-business-day gap separating measurement windows; fold preprocessing fits on training rows. Some longer reference histories can still overlap. This is not independent real-world validation, and random row splitting would be inappropriate.
+
+**Why random forest? What alternatives were tested?** It can represent nonlinear relationships, but that is a reason to test it, not assume it wins. Cells 5 and 11 compare classifiers with logistic regression and simple baselines. Cells 6 and 12 compare count forecasts with lag/trailing-mean or seasonal-naive baselines, ARIMA and Holt-Winters. Report the relevant table, time split, metric and sample size; do not merge different experiments.
+
+**What do the raw records represent?** Intake A and Intake B are application-receipt events; Completions A is a separate workflow-completion stream. They are synthetic events, not linked individual cases or adjudication decisions.
+
+**Does more than a million events mean a million training samples?** No. Underlying records reconcile into a much smaller daily-series table. Time-window features and train/test splits reduce the effective modeling sample further. Report each grain separately from the run's counts.
+
+**What does drift mean?** Input distributions changed relative to training. It does not by itself prove worse predictions. Error monitoring needs actual outcomes and sufficient samples. The controlled deterioration exercise deliberately changes evaluation outcomes; it is not measured real performance.
+
+**What triggers retraining?** An investigation and adequate evaluation evidence. An advisory threshold requests review. Training, candidate acceptance and promotion are separate decisions; the demo does not provide real approval.
+
+**Can another process use the model?** Yes, through the independently loadable saved bundle and scorer. Show the verified backend. Target-compute loading and MLflow/registry access require separate evidence; a local test cannot establish them.
+
+**What is deployed?** Only what the run receipt verifies. Source files, tests and a local preview do not prove native Delta, dashboard, scheduling or production operation. No agency data, notification delivery or automated operational decision is included.
+
+## Execution receipt
+
+Keep workspace identifiers and permissions evidence in an appropriate private location. Shared material should contain only sanitized results.
 
 ```text
-Operator / date:
-Source SHA / parameter edits:
-Workspace / compute / runtime (private):
-Cells 1–22 completed; ten figures inspected:
-Actual metrics and baseline comparisons:
-MLflow run and four model URIs opened:
-Delta destination and 22 row/key checks, or off:
-Registered candidate versions/tags/aliases, or off:
-Job run / source revision, or not demonstrated:
-SQL dashboard checks, or not demonstrated:
-Errors, resolutions and final full-rerun result:
-Remaining gaps / presenter:
+Source revision and configuration:
+Dependency/runtime versions:
+Synthetic application rows / daily rows / modeling windows:
+Reconciliation, calendar and chronological checks:
+Measured alternatives, baselines, metrics and sample sizes:
+Artifact directory / manifest identity / scoring parity:
+Backend verified: local bundle or actual MLflow URI:
+Databricks training/scoring run evidence, or unverified:
+Delta schema / manifest row counts / duplicate-key checks, or off:
+Native import / warehouse / ten queries / four pages / filter, or unverified:
+Presenter fallback inspected:
+Human-review exercise and rollback limits explained:
+Remaining gates and responsible operator:
 ```
 
-## Optional drift and dashboard walkthrough
-
-Use Cells 21–22 and [the dashboard setup guide](../dashboards/README.md). The original 22-slide deck remains the core presentation; use the new dashboard as a live follow-up for drift/retraining questions. Native dashboard import, query execution and rendering are still target-workspace checks.
+Use runtime results instead of historical numeric claims. Local checks, simulated service contracts, native platform execution and operational acceptance are separate evidence levels.

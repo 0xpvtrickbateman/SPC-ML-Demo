@@ -12,6 +12,7 @@ import sys
 from types import ModuleType, SimpleNamespace
 
 os.environ.setdefault("MPLBACKEND", "Agg")
+os.environ["SPC_DEMO_LOCAL_TEST"] = "1"
 notebook = Path(__file__).resolve().parents[1] / "notebooks" / "SPC_ML_Demo.py"
 with contextlib.redirect_stdout(io.StringIO()):
     state = runpy.run_path(str(notebook))
@@ -53,7 +54,7 @@ for api_version in (2, 3):
     sys.modules["mlflow"] = mlflow
     sys.modules["mlflow.sklearn"] = mlflow.sklearn
     try:
-        namespace = {**state, "UC_MODEL_NAME": "demo.schema.spc_rule_classifier"}
+        namespace = {**state, "LOCAL_TEST": False, "UC_MODEL_NAME": "demo.schema.spc_rule_classifier"}
         with contextlib.redirect_stdout(io.StringIO()):
             exec(mlflow_cell, namespace)
     finally:
