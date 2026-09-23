@@ -5,3 +5,5 @@ __pycache__/
 .DS_Store
 .databrickscfg
 *.dbc
+.build/
+.chart-data-*/

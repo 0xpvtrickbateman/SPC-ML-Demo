@@ -13,7 +13,7 @@ For the orals, show the notebook first, then a completed job run if available. A
 ## Acceptance check
 
 - The source is fictional; no USCIS table or connection appears in the code.
-- Rules, `signal_detected`, and both charts display after **Run all**.
+- Rules, `signal_detected`, and all three figures display after **Run all**.
 - Both ML tasks show chronological holdout metrics and simple baselines.
 - The review queue is pending, and no automatic action occurs.
 - The experiment records metrics and model artifacts when MLflow is available.

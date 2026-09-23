@@ -19,7 +19,7 @@ ORDER BY run_date;
 SELECT series_id, run_date, last_signal_date, signal_windows,
        rule_fired, last_value, disposition, dataset_id
 FROM demo_catalog.demo_schema.review_queue
-ORDER BY run_date DESC, series_id;
+ORDER BY last_signal_date DESC, series_id;
 
 -- Forward-looking forecast: observed versus predicted on held-out dates.
 SELECT run_date, series_id, daily_count, predicted_count, trailing_mean_baseline

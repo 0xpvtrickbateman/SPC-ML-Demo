@@ -352,7 +352,7 @@ plt.show()
 # MAGIC ### Cell 8: Give people a manageable review list
 # MAGIC **Plain English:** Consecutive days of rule flags for one series become one review episode instead of a new alert every day.
 # MAGIC **Technique:** Group-by and a cumulative count identify each contiguous run of signals. Basic data and model health indicators go into `monitoring_df`.
-# MAGIC **Output:** `review_df` shows the most recent 15 episodes with the rules involved and a pending disposition. The printed total counts **all** episodes.
+# MAGIC **Output:** `review_df` shows the 15 episodes with the latest signal dates, their rules, and a pending disposition. The printed total counts **all** episodes.
 # MAGIC **Developer note:** This is a proposed review queue. It does not send notifications, record a completed analyst decision, or automate an operational action.
 
 # COMMAND ----------
@@ -380,7 +380,7 @@ review_df["disposition"] = "Pending analyst review"
 review_df = review_df[["series_id", "episode_id", "run_date", "last_signal_date", "signal_windows",
                        "window_end", "rule_fired", "last_value", "disposition", "source_name", "dataset_id"]]
 total_review_episodes = len(review_df)
-review_df = review_df.sort_values(["run_date", "series_id"]).tail(15).reset_index(drop=True)
+review_df = review_df.sort_values(["last_signal_date", "series_id"]).tail(15).reset_index(drop=True)
 monitoring_df = pd.DataFrame([{
     "dataset_id": DATASET_ID,
     "source_rows": len(daily_df),
@@ -396,7 +396,7 @@ monitoring_df = pd.DataFrame([{
     "forecast_mae": forecast_metrics["forecast_mae"],
     "trailing_mean_baseline_mae": forecast_metrics["trailing_mean_baseline_mae"],
 }])
-print("Consolidated review episodes (most recent 15; no automatic action):")
+print("Consolidated review episodes (15 latest signal dates; no automatic action):")
 display(review_df) if "display" in globals() else print(review_df.tail(5).to_string(index=False))
 print("Monitoring snapshot:")
 display(monitoring_df) if "display" in globals() else print(monitoring_df.to_string(index=False))
@@ -414,6 +414,7 @@ display(monitoring_df) if "display" in globals() else print(monitoring_df.to_str
 
 # DBTITLE 1,Log the result in MLflow when available
 try:
+    from inspect import signature
     import mlflow
     import mlflow.sklearn
 except ImportError:
@@ -423,20 +424,28 @@ if mlflow is None:
     print("MLflow is not installed here. In Databricks, this cell logs the model and metrics.")
 else:
     # Databricks notebooks automatically use their notebook experiment.
+    # MLflow 2 uses artifact_path; MLflow 3 uses name for logged models.
+    model_path_arg = "name" if "name" in signature(mlflow.sklearn.log_model).parameters else "artifact_path"
     with mlflow.start_run(run_name="attainx_spc_synthetic_models") as run:
         mlflow.log_params({"source": "synthetic", "seed": SEED, "window": WINDOW,
                            "dataset_id": DATASET_ID, "baseline_days": BASELINE_DAYS, "model": "random_forest",
                            "n_estimators": 100, "max_depth": 8})
         mlflow.log_metrics(metrics)
         mlflow.log_metrics(forecast_metrics)
-        mlflow.sklearn.log_model(model, name="model", input_example=X_train.head(2))
-        mlflow.sklearn.log_model(forecast_model, name="count_forecast", input_example=forecast_X.head(2))
+        classifier_model_info = mlflow.sklearn.log_model(
+            model, **{model_path_arg: "model"}, input_example=X_train.head(2)
+        )
+        forecast_model_info = mlflow.sklearn.log_model(
+            forecast_model, **{model_path_arg: "count_forecast"}, input_example=forecast_X.head(2)
+        )
         print("MLflow run ID:", run.info.run_id)
+        print("Logged model URIs:", classifier_model_info.model_uri, forecast_model_info.model_uri)
         if UC_MODEL_NAME:
-            from mlflow import MlflowClient
+            assert re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*", UC_MODEL_NAME), (
+                "Set UC_MODEL_NAME to a permitted catalog.schema.model using simple identifiers."
+            )
             mlflow.set_registry_uri("databricks-uc")
-            model_uri = f"runs:/{run.info.run_id}/model"
-            registered = mlflow.register_model(model_uri, UC_MODEL_NAME)
+            registered = mlflow.register_model(classifier_model_info.model_uri, UC_MODEL_NAME)
             print("Registered model:", UC_MODEL_NAME, "version", registered.version)
 
 # COMMAND ----------
@@ -466,7 +475,7 @@ if OUTPUT_SCHEMA:
     ]:
         # String dates keep schema inference portable across Spark Connect runtimes.
         output_frame = frame.copy()
-        for date_col in ["run_date", "window_start", "window_end"]:
+        for date_col in ["run_date", "last_signal_date", "window_start", "window_end"]:
             if date_col in output_frame:
                 output_frame[date_col] = output_frame[date_col].dt.strftime("%Y-%m-%d")
         (spark.createDataFrame(output_frame)

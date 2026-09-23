@@ -9,7 +9,7 @@ The [presenter deck](docs/SPC_ML_Demo_Walkthrough_Ready.pptx) explains SPC, ever
 
 1. In **Workspace**, open the Git folder for this repository, then open `notebooks/SPC_ML_Demo.py` as a notebook. If Git folders are not ready, import that file through **Workspace → Import**.
 2. Choose available Python compute and run **Run all**. The default settings require no catalog, secret, external file, GPU, or model serving endpoint. This revision passed a local top-to-bottom check; verify it in your own Databricks workspace before the oral presentation.
-3. Inspect the control chart, the forecast chart, the printed held-out metrics, the pending analyst review queue, and the MLflow run ID. Each code cell now has a short explanatory markdown cell directly above it. Allow a few minutes for compute startup.
+3. Inspect the three figures, printed held-out metrics, and pending analyst review queue. Check the MLflow run ID and both logged model URIs if MLflow is available. Each code cell has a short explanatory markdown cell directly above it. Allow a few minutes for compute startup.
 4. If you have a writable Unity Catalog catalog and schema, set `OUTPUT_SCHEMA = "catalog.schema"` near the top and rerun to create six managed Delta tables. Leave it empty if permissions or managed storage are not yet ready.
 5. If a Unity Catalog model registry is ready, set `UC_MODEL_NAME = "catalog.schema.spc_rule_classifier"` and rerun. Registration is optional. Do not point this demo at production objects.
 
@@ -23,7 +23,7 @@ The source file begins with `# Databricks notebook source` and contains Databric
 | SPC | XmR, CUSUM and EWMA over 25-day windows; `signal_detected` is their logical OR | A signal is a review candidate. It does not establish cause, severity, or a real incident. The window can keep a signal active after an unusual day. |
 | Rule-label classifier | Random Forest trained on rolling statistics, evaluated on later dates with a gap | Reproduces a label that the rules already calculate. This model is **not** an advance warning system. The direct rules remain the first choice for determining whether those rules fired. |
 | Forward-looking model | Random Forest forecasts the next business day's count from history and known weekday/series fields | A distinct prediction task. Compare its mean absolute error against the prior count and trailing five-day mean. Synthetic results are not real-world performance estimates. |
-| Oversight | Consecutive flagged windows consolidated into review episodes with triggering rules, duration, source and `Pending analyst review` | A person investigates each candidate. The demo does not email the reviewer or decide an outcome. |
+| Oversight | Consecutive flagged windows consolidated into review episodes with triggering rules, duration, source and `Pending analyst review` | The latest 15 episodes by signal date form a proposed review list. A reviewer would need to investigate them; the demo does not email anyone or decide an outcome. |
 | Traceability | Seed, data ID, split dates, baseline scores, MLflow run and optional Delta tables | Enough to repeat this fabricated run; actual enterprise lineage and incident audit are outside the prototype. |
 
 ## Evaluation and limits
@@ -48,9 +48,10 @@ With Python 3.12 and packages in `requirements.txt`:
 ```bash
 python -m pip install -r requirements.txt
 MPLBACKEND=Agg python tests/smoke_test.py
+MPLBACKEND=Agg python tests/mlflow_contract_test.py
 ```
 
-Local tests omit Databricks-only Delta output and MLflow if not installed. A successful local check does not replace a full Databricks run, job execution or dashboard verification.
+The MLflow contract check simulates the 2.x and 3.x APIs without writing an actual run. Local tests omit Databricks-only Delta output. A successful local check does not replace a full Databricks run, model logging, job execution or dashboard verification.
 
 ## Before the oral presentation
 
