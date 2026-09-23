@@ -3,12 +3,13 @@
 An AttainX demonstration of statistical process control and machine learning using **entirely synthetic data**. The notebook is the runnable product. It does not access USCIS data, services, tables, or model artifacts.
 
 See [reference-to-demo mapping](docs/reference-mapping.md) for the specific reference ideas represented here and the capabilities intentionally left out.
+The [presenter deck](docs/SPC_ML_Demo_Walkthrough_Ready.pptx) explains SPC, every executable notebook cell, the distinct ML tasks, the observed synthetic results, and the oral-question coverage. Its speaker notes provide a plain-English talk track.
 
 ## Five-minute setup in Databricks
 
 1. In **Workspace**, open the Git folder for this repository, then open `notebooks/SPC_ML_Demo.py` as a notebook. If Git folders are not ready, import that file through **Workspace → Import**.
-2. Choose available Python compute (the notebook was previously run on serverless). Run **Run all**. The default settings require no catalog, secret, external file, GPU, or model serving endpoint.
-3. Inspect the control chart, the forecast chart, the printed held-out metrics, the pending analyst review queue, and the MLflow run ID. Allow a few minutes for compute startup.
+2. Choose available Python compute and run **Run all**. The default settings require no catalog, secret, external file, GPU, or model serving endpoint. This revision passed a local top-to-bottom check; verify it in your own Databricks workspace before the oral presentation.
+3. Inspect the control chart, the forecast chart, the printed held-out metrics, the pending analyst review queue, and the MLflow run ID. Each code cell now has a short explanatory markdown cell directly above it. Allow a few minutes for compute startup.
 4. If you have a writable Unity Catalog catalog and schema, set `OUTPUT_SCHEMA = "catalog.schema"` near the top and rerun to create six managed Delta tables. Leave it empty if permissions or managed storage are not yet ready.
 5. If a Unity Catalog model registry is ready, set `UC_MODEL_NAME = "catalog.schema.spc_rule_classifier"` and rerun. Registration is optional. Do not point this demo at production objects.
 
@@ -50,6 +51,10 @@ MPLBACKEND=Agg python tests/smoke_test.py
 ```
 
 Local tests omit Databricks-only Delta output and MLflow if not installed. A successful local check does not replace a full Databricks run, job execution or dashboard verification.
+
+## Before the oral presentation
+
+After pulling the newest commit into the Databricks Git folder, verify that the introductory markdown and **Cell 1** through **Cell 10** markdown appear above their corresponding code cells. Run all cells on the presentation compute, then check the MLflow run if the workspace permits it. OUTPUT_SCHEMA remains empty unless a dedicated writable demo schema has been confirmed. Bring the presenter deck as a companion to the live notebook, and use the live notebook outputs if the displayed numbers differ from the seeded local check.
 
 ## Demonstration sequence
 

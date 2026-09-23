@@ -18,6 +18,15 @@
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ### Cell 1: Set the rules for this run
+# MAGIC **Plain English:** Choose the random seed, how much history each rule reads, and whether to save results.
+# MAGIC **Technique:** Python libraries handle tables, numerical calculations, charts, and random forest models.
+# MAGIC **Check:** `OUTPUT_SCHEMA` and `UC_MODEL_NAME` are empty by default, so the first run needs no write permissions.
+# MAGIC **Developer note:** Change the settings here, then rerun all cells so labels, splits, charts, and logged metrics agree.
+
+# COMMAND ----------
+
 # DBTITLE 1,Configuration and imports
 import re
 import warnings
@@ -54,6 +63,15 @@ plt.rcParams.update({"figure.figsize": (11, 4), "axes.grid": True, "grid.alpha":
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ### Cell 2: Make a safe example dataset
+# MAGIC **Plain English:** Create three imaginary daily work queues. We plant a few jumps and sustained changes so there is something for the chart to find.
+# MAGIC **Technique:** A seeded NumPy generator makes repeatable synthetic time series. Assertions check unique dates and nonnegative counts.
+# MAGIC **Output:** `daily_df` has one count per business day and fictional series. `dataset_id` identifies this synthetic run.
+# MAGIC **Developer note:** The planted changes help explain the demo; they are no proof that real agency data behave this way.
+
+# COMMAND ----------
+
 # DBTITLE 1,Generate synthetic operational series
 rng = np.random.default_rng(SEED)
 dates = pd.bdate_range("2025-01-06", periods=N_DAYS)
@@ -75,6 +93,15 @@ assert daily_df.groupby(["series_id", "run_date"]).size().max() == 1
 assert daily_df["daily_count"].notna().all() and daily_df["daily_count"].ge(0).all()
 print(f"Created {len(daily_df):,} fictitious daily observations across {len(series_config)} series.")
 display(daily_df.head()) if "display" in globals() else print(daily_df.head().to_string(index=False))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Cell 3: Define the three SPC checks
+# MAGIC **Plain English:** XmR notices unusually large individual values; CUSUM adds small departures from a past average; EWMA smooths recent values to reveal a shift.
+# MAGIC **Technique:** XmR uses the average moving range for limits. CUSUM accumulates deviations. EWMA gives newer observations more weight.
+# MAGIC **Output:** Three functions return a yes/no rule signal; XmR also returns the center, limits, and moving range for the chart.
+# MAGIC **Developer note:** Each function scans the **whole preceding window**. A flag can stay true across several later runs after one event.
 
 # COMMAND ----------
 
@@ -110,6 +137,15 @@ def ewma_signal(window, baseline_mean, baseline_sigma):
         )
         fired |= abs(z - baseline_mean) > band
     return fired
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Cell 4: Turn past counts into signals and features
+# MAGIC **Plain English:** For each date, inspect the prior 25 business days against an earlier 90-day reference period. Save which SPC check fired.
+# MAGIC **Technique:** Rolling-window feature engineering produces means, variation, recent trend, and distance from the baseline. `signal_detected` is `xmr_signal OR cusum_signal OR ewma_signal`.
+# MAGIC **Output:** `signals_df` contains the rule flags and measurements used later by the models.
+# MAGIC **Developer note:** The features and rule label describe the **same past window**. The classifier below imitates these rules; it is not advance warning.
 
 # COMMAND ----------
 
@@ -151,6 +187,15 @@ assert len(signals_df) > 100 and signals_df["signal_detected"].nunique() == 2
 assert (signals_df["signal_detected"] == signals_df[["xmr_signal", "cusum_signal", "ewma_signal"]].any(axis=1)).all()
 print(f"{len(signals_df):,} labeled windows; rule signal rate: {signals_df['signal_detected'].mean():.1%}")
 print(signals_df[["xmr_signal", "cusum_signal", "ewma_signal"]].mean().map(lambda v: f"{v:.1%}").to_string())
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Cell 5: Test whether ML can copy the rule label
+# MAGIC **Plain English:** Train on earlier dates and ask a random forest if the SPC rules fired on later dates.
+# MAGIC **Technique:** A chronological holdout with a 25-business-day gap prevents overlapping train and test windows. Compare accuracy with constant predictions, and read precision, recall, F1, and ROC AUC.
+# MAGIC **Output:** `predictions_df` holds the model calls; `metrics` holds both model and simple-baseline scores.
+# MAGIC **Decision:** This classification is useful only if it adds something to directly running the known rules. A strong AUC alone does not establish added mission value.
 
 # COMMAND ----------
 
@@ -207,6 +252,15 @@ predictions_df["dataset_id"] = DATASET_ID
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ### Cell 6: Predict one future business-day count
+# MAGIC **Plain English:** Use information available yesterday to estimate today's workload before today's count arrives.
+# MAGIC **Technique:** A random forest regressor learns from past counts, recent trend, weekday, and series. A later-date test with a gap compares mean absolute error (MAE) to the simple five-day moving average.
+# MAGIC **Output:** `forecast_results_df` holds actual and predicted counts; `forecast_metrics` reports errors in **daily-count units**.
+# MAGIC **Developer note:** This is a **one-business-day forecast**. It does not predict a confirmed incident, and the test score comes only from fabricated data.
+
+# COMMAND ----------
+
 # DBTITLE 1,Forecast the next business day's count (separate from rule classification)
 # Each run_date's features use only the 25 business days ending the previous day.
 # The target is the count observed on run_date, which was unavailable when predicting.
@@ -248,6 +302,15 @@ else:
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ### Cell 7: Draw the evidence
+# MAGIC **Plain English:** The first chart shows recent counts and XmR limits. The second shows which rule labels the classifier matched or missed. The third compares the forecast with later observed counts.
+# MAGIC **Technique:** Matplotlib draws the time series; a confusion matrix displays true and false classifier calls on the held-out dates.
+# MAGIC **Read carefully:** A circle means **any** rule fired somewhere in the past 25-day window. The point under the circle does not have to cross the displayed XmR limit.
+# MAGIC **Developer note:** These charts support explanation; review actual rows and rule flags before interpreting a cause.
+
+# COMMAND ----------
+
 # DBTITLE 1,Show the control chart and classification results
 chosen = "Intake A"
 chart_df = signals_df[signals_df.series_id == chosen].tail(90)
@@ -282,6 +345,15 @@ ax.legend()
 fig.autofmt_xdate()
 plt.tight_layout()
 plt.show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Cell 8: Give people a manageable review list
+# MAGIC **Plain English:** Consecutive days of rule flags for one series become one review episode instead of a new alert every day.
+# MAGIC **Technique:** Group-by and a cumulative count identify each contiguous run of signals. Basic data and model health indicators go into `monitoring_df`.
+# MAGIC **Output:** `review_df` shows the most recent 15 episodes with the rules involved and a pending disposition. The printed total counts **all** episodes.
+# MAGIC **Developer note:** This is a proposed review queue. It does not send notifications, record a completed analyst decision, or automate an operational action.
 
 # COMMAND ----------
 
@@ -331,6 +403,15 @@ display(monitoring_df) if "display" in globals() else print(monitoring_df.to_str
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ### Cell 9: Record how each model was made
+# MAGIC **Plain English:** Save parameters, scores, and both trained models so another person can inspect this run.
+# MAGIC **Technique:** MLflow experiment tracking stores run metadata and artifacts. Model registration in Unity Catalog is optional.
+# MAGIC **Output:** A run ID in Databricks; if `UC_MODEL_NAME` is set and access is granted, a registered model version.
+# MAGIC **Developer note:** An MLflow run preserves evidence of this execution. Reproducing it also requires the notebook revision, package versions, input dataset ID, and environment to be recorded.
+
+# COMMAND ----------
+
 # DBTITLE 1,Log the result in MLflow when available
 try:
     import mlflow
@@ -357,6 +438,15 @@ else:
             model_uri = f"runs:/{run.info.run_id}/model"
             registered = mlflow.register_model(model_uri, UC_MODEL_NAME)
             print("Registered model:", UC_MODEL_NAME, "version", registered.version)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Cell 10: Optionally save the demo tables
+# MAGIC **Plain English:** After checking permissions, put the fictional input, signals, predictions, review list, and metrics in six queryable tables.
+# MAGIC **Technique:** Spark writes managed Delta tables to an existing Unity Catalog `catalog.schema`.
+# MAGIC **Output:** Tables for a dashboard or inspection if `OUTPUT_SCHEMA` is set. With the default empty setting, this cell only explains how to enable them.
+# MAGIC **Developer note:** The notebook uses `overwrite`. Choose a demo-only schema, and never point this setting at a shared production table.
 
 # COMMAND ----------
 
