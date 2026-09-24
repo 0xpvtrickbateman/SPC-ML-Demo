@@ -78,6 +78,15 @@ def save_forecast_bundle(model, sample_inputs, directory, model_uri=None):
     return manifest
 
 
+def record_model_uri(directory, model_uri):
+    """Attach a successfully logged MLflow URI to an existing bundle; the model digest is unchanged."""
+    path = Path(directory) / "manifest.json"
+    manifest = json.loads(path.read_text())
+    manifest["model_uri"] = model_uri
+    path.write_text(json.dumps(manifest, indent=2) + "\n")
+    return manifest
+
+
 def read_sample_inputs(directory, manifest):
     """Restore pandas integer widths lost by the JSON table format."""
     frame = pd.read_json(Path(directory) / "sample_inputs.json", orient="table")

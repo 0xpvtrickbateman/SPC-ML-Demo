@@ -4,10 +4,14 @@ import io
 import os
 from pathlib import Path
 import runpy
+import sys
+import tempfile
 import numpy as np
 import pandas as pd
 os.environ.setdefault("MPLBACKEND", "Agg")
 os.environ["SPC_DEMO_LOCAL_TEST"] = "1"
+# Leave any operator bundle in artifacts/ untouched unless a directory is chosen explicitly.
+os.environ.setdefault("SPC_DEMO_MODEL_DIR", tempfile.mkdtemp(prefix="spc-smoke-bundle-"))
 root=Path(__file__).resolve().parents[1]
 with contextlib.redirect_stdout(io.StringIO()) as output:
     state=runpy.run_path(str(root/"notebooks"/"SPC_ML_Demo.py"))
@@ -78,6 +82,9 @@ cells=source.split("# COMMAND ----------")
 code=[(i,c) for i,c in enumerate(cells) if "# DBTITLE 1," in c]
 assert len(code)==22
 for n,(i,c) in enumerate(code,1):assert f"### Cell {n}:" in cells[i-1]
+# Every cell names its method so reviewers can see where statistics ends and ML begins.
+for n,(i,c) in enumerate(code,1):assert "**Type:**" in cells[i-1],n
+assert "ictional" not in source, "Use 'synthetic' for data and 'simulated' for exercise actions"
 assert 'OUTPUT_SCHEMA = "ml_statistical_process_controls.demo_schema"' in source
 assert s["OUTPUT_SCHEMA"] == "" and s["LOCAL_TEST"] is True
 assert len(s["raw_events_df"]) >= 1_000_000
@@ -86,6 +93,12 @@ assert len(s["raw_events_df"]) == len(s["prepared_events_df"]) == s["daily_df"].
 recomputed=s["prepared_events_df"].groupby(["series_id", "run_date"], observed=True).size().sort_index()
 assert np.array_equal(recomputed.to_numpy(),s["daily_df"].set_index(["series_id","run_date"]).daily_count.sort_index().to_numpy())
 assert s["model"].get_params()["class_weight"] == "balanced"
+# Constant baselines are reported on the same metric as the models (F1 of always predicting a signal).
+rate=s["metrics"]["test_signal_rate"]
+assert np.isclose(s["metrics"]["always_signal_f1"],2*rate/(1+rate))
+for fold,g in s["fold_metrics_df"].groupby("fold"):
+    fold_rate=signals.loc[s["fold_specs"][fold-1][2],"signal_detected"].mean()
+    assert np.allclose(g.always_signal_f1,2*fold_rate/(1+fold_rate))
 assert np.isclose(s["forecast_metrics"]["forecast_bias"],(s["forecast_results_df"].predicted_count-s["forecast_results_df"].daily_count).mean())
 assert s["assessment_metrics"](pd.DataFrame({"prediction":[12.],"actual":[10.],"origin_count":[9.]}))["bias"] == 2.
 print("Expanded smoke test passed: 22 cells, chronological folds, future forecasts, history, lifecycle and replay checks.")
@@ -100,18 +113,11 @@ assert s["selected_forecaster"] == s["selection_scores"].idxmin()
 
 # Compact execution receipt for the deck and review; all values come from this run.
 import json
-receipt={"dataset":s["dataset_summary"],"dataset_id":s["DATASET_ID"],"classifier_metrics":s["metrics"],
-         "forecast_metrics":s["forecast_metrics"],"classifier_config":s["CLASSIFIER_CONFIG"],
-         "classifier_train_rows":len(s["train_df"]),"classifier_test_rows":len(s["test_df"]),
-         "forecast_train_rows":int(s["forecast_train"].sum()),"forecast_test_rows":int(s["forecast_test"].sum()),
-         "selected_forecaster":s["selected_forecaster"],"model_manifest":s["saved_forecast_manifest"],
-         "signal_rows":len(signals),"review_episodes":len(s["review_df"]),
-         "isolation_anomaly_rows":int(s["anomaly_df"].model_anomaly.sum()),
-         "isolation_disagreement_rows":int(s["anomaly_df"].disagrees_with_spc.sum()),
-         "isolation_contamination":s["final_contamination"]}
-for name in ["fold_metrics_df","iso_fold_df","five_day_metrics_df","drift_performance_df","daily_df","lifecycle_df","forecast_results_df","train_df","test_df"]:
-    frame=s[name]
-    receipt[name]=json.loads(frame.to_json(orient="records",date_format="iso"))
+sys.path.insert(0,str(root/"scripts"))
+from prepare_deck_evidence import receipt_from_state
+receipt=receipt_from_state(s)
+assert s["MLFLOW_STATUS"]=="disabled" and s["saved_forecast_manifest"]["model_uri"] is None
+assert list(s["forecast_test_dates"])==sorted(s["forecast_results_df"].run_date.unique())
 (root/".build").mkdir(exist_ok=True)
 (root/".build"/"notebook-metrics.json").write_text(json.dumps(receipt,indent=2,allow_nan=False))
 print("Metrics receipt: .build/notebook-metrics.json")

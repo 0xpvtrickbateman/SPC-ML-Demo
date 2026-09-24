@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "5"
+# ///
 # MAGIC %md
 # MAGIC # Load a saved forecast and score without training
 # MAGIC Run this notebook in a fresh Python session after the main demo saved its bundle.

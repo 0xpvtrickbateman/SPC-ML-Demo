@@ -10,9 +10,12 @@ cell=source.split('# DBTITLE 1,Optional managed Delta history\n',1)[1].split('# 
 variables=['daily_df','signals_df','predictions_df','forecast_results_df','review_df','monitoring_df','zone_df','subgroup_df','future_forecasts_df','forecast_ledger_df','assessment_df','anomaly_df','lineage_df','upstream_profile_df','events_df','hypotheses_df','lifecycle_df','outbox_df','operator_disposition_df']
 row=dict(series_id='A',run_date=pd.Timestamp('2026-01-06'),episode_id=1,office='North',model='baseline',origin_date=pd.Timestamp('2026-01-05'),target_date=pd.Timestamp('2026-01-06'),table='demo.a',path='demo.b -> demo.a',event_id='event',component='forecast')
 ns={name:pd.DataFrame([row]) for name in variables}
-queries=[];views=[]
+queries=[];views=[];schemas=[]
 class Spark:
-    def createDataFrame(self,frame):return SimpleNamespace(createOrReplaceTempView=lambda name:views.append(name))
+    def createDataFrame(self,frame,schema=None):
+        assert len(frame) or schema is not None, "Empty Spark inputs require an explicit schema"
+        schemas.append(schema)
+        return SimpleNamespace(createOrReplaceTempView=lambda name:views.append(name))
     def sql(self,query):queries.append(query)
 ns.update(OUTPUT_SCHEMA='demo.spc',DATASET_ID='fixture',re=re,pd=pd,spark=Spark())
 with contextlib.redirect_stdout(io.StringIO()):exec(cell,ns)
@@ -20,4 +23,10 @@ assert len(views)==19 and len(queries)==38
 assert sum(q.startswith('MERGE INTO') for q in queries)==19
 assert all('target.`dataset_id` = source.`dataset_id`' in q for q in queries if q.startswith('MERGE'))
 assert not any('DROP ' in q or 'DELETE ' in q or 'OVERWRITE' in q for q in queries)
-print('Delta contract passed: 19 keyed MERGE statements; simulated Spark only.')
+queries.clear();views.clear();schemas.clear()
+ns['outbox_df']=pd.DataFrame(columns=['dataset_id','run_date','series_id','episode_id','status','delivery']).astype({'run_date':'datetime64[ns]','episode_id':'int64'})
+with contextlib.redirect_stdout(io.StringIO()):exec(cell,ns)
+assert len(views)==19 and len(queries)==38
+assert [schema for schema in schemas if schema is not None] == ['dataset_id STRING, run_date STRING, series_id STRING, episode_id BIGINT, status STRING, delivery STRING']
+assert any('notification_outbox' in q and q.startswith('MERGE INTO') for q in queries)
+print('Delta contract passed: 19 keyed MERGE statements and an explicitly typed empty outbox; simulated Spark only.')

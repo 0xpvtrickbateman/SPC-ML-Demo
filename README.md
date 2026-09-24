@@ -4,7 +4,7 @@ Review the [validation report](docs/validation-report.md) for completed checks a
 
 An AttainX demonstration of **synthetic USCIS-related application volume → unusual activity → analyst review**. All records, counts, offices, events and lineage are fabricated. Intake queues count application-receipt events; the completion queue counts workflow-completion events. These are independent streams, not a linked applicant lifecycle. The demo accesses no USCIS data or services and makes no claim about agency outcomes.
 
-The main [Databricks notebook](notebooks/SPC_ML_Demo.py) has 22 executable cells with explanations and intermediate dataframe previews. SPC uses statistical rules to identify unusual patterns. A separate ML experiment tests whether a classifier can copy those rule labels; a separate forecasting branch predicts actual future counts. A signal or classifier prediction is never a confirmed incident.
+The main [Databricks notebook](notebooks/SPC_ML_Demo.py) has 22 executable cells with explanations and intermediate dataframe previews. SPC uses statistical rules to identify unusual patterns. A separate ML experiment tests whether a classifier can copy those rule labels; a separate forecasting branch predicts actual future counts. A signal or classifier prediction is never a confirmed incident. The notebook opens with a map of which cells use statistical rules and which use machine learning, and each cell names its method type.
 
 ## Start here
 
@@ -46,6 +46,9 @@ MPLBACKEND=Agg python tests/delta_contract_test.py
 MPLBACKEND=Agg python tests/dashboard_test.py
 node tests/setup_helper_test.mjs
 MPLBACKEND=Agg python tests/model_reuse_test.py
+MPLBACKEND=Agg python tests/drift_input_evidence_test.py
+MPLBACKEND=Agg python tests/outbox_replay_test.py
+python tests/deck_consistency_test.py
 ```
 
 See the runbook for the independent scoring contract check and expected outputs. MLflow and Delta contract checks use simulated services; local dashboard SQL checks do not prove Databricks rendering. The native dashboard targets `ml_statistical_process_controls.demo_schema`; the notebook is configured to write there by default. Set `SPC_DEMO_LOCAL_TEST=1` for local execution, or explicitly set `OUTPUT_SCHEMA = ""` for an analytical run without Delta writes. This default-storage catalog requires serverless notebook compute and a serverless SQL warehouse; verify their availability and destination permissions before a native run.

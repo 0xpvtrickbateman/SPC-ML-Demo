@@ -40,6 +40,10 @@ with tempfile.TemporaryDirectory(prefix="spc-real-mlflow-") as tmp:
     state["UC_MODEL_NAME"] = ""
     with contextlib.redirect_stdout(io.StringIO()):
         exec(cell, state)
+    assert state["MLFLOW_STATUS"] == "logged", state["MLFLOW_STATUS"]
+    assert all(state[name] is not None for name in (
+        "classifier_model_info", "forecast_model_info", "logistic_model_info", "anomaly_model_info",
+    ))
     assert state["saved_forecast_manifest"]["model_uri"] == state["forecast_model_info"].model_uri
     child = '''
 import runpy

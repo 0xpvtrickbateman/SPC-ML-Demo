@@ -16,7 +16,7 @@ This synthetic example demonstrates the major SPC and predictive-modeling workfl
 | Investigation | Cell 15: rules, office changes, freshness and nearby events | Unverified hypotheses, not causal findings |
 | Evaluation and retraining | Cell 16: retained forecast origins, actuals, error metrics and evidence guards | Historical replay; no ongoing actuals feed or automatic retraining |
 | Candidate lifecycle | Cell 17: comparisons, withdrawal and rollback exercise | Does not grant human approval or change production aliases |
-| Review and notices | Cells 8, 18: pending queue, fictional disposition and replay outbox | No real adjudication or external message delivery |
+| Review and notices | Cells 8, 18: pending queue, simulated disposition and replay outbox | No real adjudication or external message delivery |
 | Artifacts and scoring | Cell 19 and independent scoring entrypoint | Local artifact reuse is separate from target-compute or registry acceptance |
 | Queryable history | Cells 20, 22: table manifests and keyed MERGE | Requires authorized Spark/Delta destination; no general schema migration |
 | Drift and error monitoring | Cells 21–22: frozen forecast model, separate input/error metrics and controlled exercise | Illustrative thresholds; exercise outcomes are not observed performance |

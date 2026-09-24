@@ -4,13 +4,13 @@
 
 ## Recorded local run
 
-Dataset `attainx_applications_v3_seed42` has 1,179,830 raw events, 1,260 daily-series observations and 915 labeled windows. The classification holdout uses 615 training rows and 228 test rows; the one-day forecast uses 615 training rows and 225 test rows. Raw event rows are not independent modeling observations.
+Dataset `attainx_applications_v3_seed42` has 1,179,830 raw events, 1,260 daily-series observations and 915 labeled windows. The classification holdout uses 615 training rows and 228 test rows; the one-day forecast uses 615 training rows and 225 test rows. Raw event rows are not independent modeling observations. The illustrative SPC limits flag 479 of 915 windows (52.3%); consolidation groups them into 30 review episodes.
 
 | Comparison | Recorded synthetic result |
 | --- | --- |
-| Single-holdout classifier | 75.0% accuracy versus 78.1% always-signal accuracy |
+| Single-holdout classifier | 75.0% accuracy versus 78.1% always-signal; F1 0.814 versus 0.877 always-signal |
 | One-day forecast | MAE 90.01 counts versus trailing-mean 97.26 and last-count 109.87 |
-| Five-fold mean classifier accuracy | Logistic regression 81.33%; random forest 77.33% |
+| Five-fold classifier means | F1: logistic regression 0.628, random forest 0.592, always-signal 0.721. Accuracy: 81.33%, 77.33%, always-signal 64.26% |
 | Five-day lifecycle decision | ARIMA selected using earlier origins; final-origin MAE improvement 22.9% over seasonal naive, only 15 observations |
 
 These measurements come from the current executed notebook outputs, not customer history. The classifier candidate is withdrawn; the five-day forecast is advisory. Different evaluation schemes and sample sizes must stay distinct. Recompute this record if source, seed or dependencies change. Local checks also verified fresh-process joblib inference and an actual MLflow 3.16.1 local tracking/URI-load round trip with training forbidden during scoring. This is not target-workspace evidence. There are 22 executable main cells and 19 workflow plus three drift tables. The raw event frames stay in notebook memory.
@@ -20,7 +20,7 @@ These measurements come from the current executed notebook outputs, not customer
 1. Record `git status --short` and `git rev-parse HEAD`. Confirm the notebook, helper, scorer, dashboard and presentation come from the intended reviewed revision.
 2. Create the Python 3.12 environment and run the README checks. Run `MPLBACKEND=Agg python tests/model_reuse_test.py` for independent artifact reuse. Read test output; commands in a guide are not proof of passing execution.
 3. Train and save the bundle using [job setup](job-setup.md), then run the separate scoring entrypoint in a fresh process. Verify prediction parity and model identity. Retain the bundle and manifest with the run receipt.
-4. For Databricks, use the repository Git folder with its helper files, serverless notebook compute for the default-storage catalog `ml_statistical_process_controls`, and a persistent artifact directory. Verify serverless availability and permissions. Run all 22 main cells, then the separate scoring notebook. Record local versus actual MLflow loading accurately.
+4. For Databricks, use the repository Git folder with its helper files, serverless notebook compute for the default-storage catalog `ml_statistical_process_controls`, and a persistent artifact directory. Give both notebooks the same environment version and dependencies; the Standard base lacks statsmodels (see [job setup](job-setup.md)). Verify serverless availability and permissions. Run all 22 main cells, then the separate scoring notebook. Record local versus actual MLflow loading accurately.
 5. Enable the dedicated Delta destination only after checking permissions. Reconcile all runtime manifests and keys, then import the native dashboard and run all ten datasets using a serverless SQL warehouse for this default-storage catalog. Inspect all four content pages and the queue filter. See [dashboard guide](../dashboards/README.md).
 6. Rehearse the story below using the actual measured comparisons and artifact identities. If service verification fails, use the local preview and retained output, explicitly labeled as local evidence.
 
@@ -30,7 +30,7 @@ These measurements come from the current executed notebook outputs, not customer
 | --- | --- | --- |
 | 0:00–0:50 | Cells 1–4 and dataframe previews | Synthetic applications aggregate into daily volumes. Large event count does not equal independent daily training observations. SPC applies statistical rules. |
 | 0:50–1:40 | Cells 8–10, 14–15 | A signal becomes a review episode. Office mix, source freshness and events suggest questions; none proves cause. |
-| 1:40–2:40 | Cells 5–6, 11–13 | Compare classifier alternatives and baselines. The proxy label differs from future counts; forecast MAE is in count units. Show the measured winner or baseline honestly. |
+| 1:40–2:40 | Cells 5–6, 11–13 | SPC label construction finishes in Cell 4; machine learning first appears in Cell 5. Compare classifier alternatives and baselines. The proxy label differs from future counts; forecast MAE is in count units. Show the measured winner or baseline honestly. |
 | 2:40–3:30 | Cell 12 | Predictions after the last observed date are actual future-count forecasts; historical backtests estimate performance. |
 | 3:30–4:20 | Cell 19 and separate scorer | A saved artifact can be loaded in another process without training. Show identity, feature contract and prediction parity. |
 | 4:20–5:30 | Cells 16–17, 21–22 and dashboard | Separate input drift from worsening error. Investigate first, then evaluate a candidate, seek human approval and retain rollback. |
@@ -42,13 +42,17 @@ An alternate presenter should read the opening statement, follow these rows, and
 
 **Is SPC machine learning?** No. XmR, CUSUM and EWMA are statistical rules. ML is a separate experiment or forecasting method.
 
+**Where does statistics end and machine learning begin?** SPC label construction finishes in Cell 4, and machine learning first appears in Cell 5. Statistical work continues afterward: Cells 8–10 review and explore the rule signals, and Cell 12 uses statistical time-series forecasts. The notebook's opening table and each cell's Type line name the method. The model carried through saving, reuse and monitoring is the Cell 6 one-day count forecast. It predicts volume, not the next rule signal; predicting signals would be separate future work.
+
 **What is the classifier's label?** Whether any selected SPC rule fired on a historical measurement window. It is a proxy label, not a verified incident. Learning to copy a rule does not establish business value over running the rule directly.
 
 **What does the forecast predict?** A count on a later business date. The one-day branch uses features from preceding observations; the five-day branch retains an origin and explicit target dates. These outputs are distinct from anomaly scores and review labels.
 
 **How is leakage controlled?** Dates split chronologically across all series, with a 25-business-day gap separating measurement windows; fold preprocessing fits on training rows. Some longer reference histories can still overlap. This is not independent real-world validation, and random row splitting would be inappropriate.
 
-**Why random forest? What alternatives were tested?** It can represent nonlinear relationships, but that is a reason to test it, not assume it wins. Cells 5 and 11 compare classifiers with logistic regression and simple baselines. Cells 6 and 12 compare count forecasts with lag/trailing-mean or seasonal-naive baselines, ARIMA and Holt-Winters. Report the relevant table, time split, metric and sample size; do not merge different experiments.
+**Why random forest? What alternatives were tested?** It can represent nonlinear relationships, but that is a reason to test it, not assume it wins. Cells 5 and 11 compare it with logistic regression and constant baselines. On F1, always predicting a signal beats both classifiers on this label, so the classifier is withdrawn and the rules stay. Cell 6 compares the one-day forecast with last-count and trailing-mean baselines; Cell 12 chooses between ARIMA and Holt-Winters on earlier origins and compares the choice with seasonal naive. No other model families, such as nearest neighbors, were tested. Report the relevant table, time split, metric and sample size; do not merge different experiments.
+
+**How much analyst work does this remove, and how accurate is it?** No workload saving or real-world accuracy is established. With these illustrative limits the rules flag 52.3% of synthetic windows; consolidation turns 479 flagged windows into 30 review episodes. Calibrating limits against confirmed outcomes is pilot work. Quote any other workload or accuracy figure only from its own evidence, never as a result of this demonstration.
 
 **What do the raw records represent?** Intake A and Intake B are application-receipt events; Completions A is a separate workflow-completion stream. They are synthetic events, not linked individual cases or adjudication decisions.
 
@@ -56,7 +60,7 @@ An alternate presenter should read the opening statement, follow these rows, and
 
 **What does drift mean?** Input distributions changed relative to training. It does not by itself prove worse predictions. Error monitoring needs actual outcomes and sufficient samples. The controlled deterioration exercise deliberately changes evaluation outcomes; it is not measured real performance.
 
-**What triggers retraining?** An investigation and adequate evaluation evidence. An advisory threshold requests review. Training, candidate acceptance and promotion are separate decisions; the demo does not provide real approval.
+**What triggers retraining?** An investigation and adequate evaluation evidence. An advisory threshold requests review: input change above 0.5 (Wasserstein distance divided by the training standard deviation) prompts investigation, and two consecutive 25-day windows above 1.25 × the reference MAE, each with at least 20 actuals, request retraining review. Training, candidate acceptance and promotion are separate decisions; the demo does not provide real approval.
 
 **Can another process use the model?** Yes, through the independently loadable saved bundle and scorer. Show the verified backend. Target-compute loading and MLflow/registry access require separate evidence; a local test cannot establish them.
 

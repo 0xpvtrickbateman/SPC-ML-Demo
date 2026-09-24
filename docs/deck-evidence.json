@@ -163,13 +163,13 @@
     ],
     [
       "Holdout accuracy",
-      "Random forest",
-      "75.0%"
+      "Random forest / always signal",
+      "75.0% / 78.1%"
     ],
     [
-      "Holdout accuracy",
-      "Always signal",
-      "78.1%"
+      "Holdout F1",
+      "Random forest / always signal",
+      "0.814 / 0.877"
     ],
     [
       "Holdout precision / recall",
@@ -178,13 +178,13 @@
     ],
     [
       "Five-fold mean F1",
-      "Random forest",
-      "0.592"
+      "Random forest / logistic",
+      "0.592 / 0.628"
     ],
     [
       "Five-fold mean F1",
-      "Logistic regression",
-      "0.628"
+      "Always signal",
+      "0.721"
     ]
   ],
   "classificationWidths": [
@@ -192,7 +192,8 @@
     470,
     290
   ],
-  "classificationConclusion": "Logistic regression has higher mean fold F1. Keep direct rules for their known target.",
+  "classificationConclusion": "Neither classifier beats always-signal on F1. Keep the direct rules for this label.",
+  "classifierConfig": "100 trees, depth 8, leaf minimum 3, balanced classes",
   "forecastTable": [
     [
       "Horizon / sample",
@@ -231,11 +232,22 @@
     ]
   ],
   "forecastConclusion": "Lower MAE is better. Five-day values pool six origins and are descriptive.",
-  "reuseSummary": "Fresh processes reload joblib and local MLflow models with identical predictions.",
+  "reuseSummary": "Fresh processes reload joblib and local MLflow models with matching predictions.",
   "driftSummary": "Controlled outcome shift: one worse window triggers watch, two trigger review.",
-  "validationSummary": "Holdout signal share 78.1%. Isolation Forest flags 18 of 228 windows.",
+  "validationSummary": "Rules flag 52.3% of windows (78.1% of the holdout). Isolation Forest flags 18 of 228.",
   "isolationContamination": 0.04455284552845529,
   "source": "Final local smoke-test receipt from notebooks/SPC_ML_Demo.py",
+  "sourceIdentity": {
+    "notebook_sha256": "af8841f98ace34b40ef7d55f4b6886af3655a6bfffa785de35c2bf951640d71f",
+    "dataset_id": "attainx_applications_v3_seed42",
+    "packages": {
+      "numpy": "2.5.3",
+      "pandas": "2.3.3",
+      "scikit-learn": "1.9.1",
+      "scipy": "1.18.1",
+      "statsmodels": "0.14.6"
+    }
+  },
   "rawMetrics": {
     "classifier": {
       "accuracy": 0.75,
@@ -245,12 +257,13 @@
       "roc_auc": 0.9169662921348315,
       "majority_baseline_accuracy": 0.21929824561403508,
       "always_signal_accuracy": 0.7807017543859649,
+      "always_signal_f1": 0.8768472906403941,
       "always_no_signal_accuracy": 0.2192982456140351,
       "test_signal_rate": 0.7807017543859649
     },
     "forecast": {
-      "forecast_mae": 90.01239651211661,
-      "forecast_bias": 2.5168878297254063,
+      "forecast_mae": 90.01239651211657,
+      "forecast_bias": 2.5168878297254085,
       "last_value_baseline_mae": 109.86666666666666,
       "trailing_mean_baseline_mae": 97.26222222222222
     },
@@ -258,6 +271,9 @@
       "Random forest": 0.59198870584,
       "Logistic regression": 0.6279181029800001
     },
+    "foldAlwaysSignalF1": 0.72117336848,
+    "ruleSignalRate": 0.5234972677595628,
+    "reviewEpisodes": 30,
     "fiveDay": [
       {
         "model": "ARIMA",

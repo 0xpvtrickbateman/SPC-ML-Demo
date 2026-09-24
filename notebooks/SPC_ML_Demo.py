@@ -16,20 +16,34 @@
 # MAGIC **Dataframe walkthrough:** Cells 2–10 show compact views of Intake A across the same five dates. Headers explain added columns, filters, joins and changes in what a row represents. Classifier, forecast, review and subgroup results are branches of the source data, not one long chain.
 # MAGIC
 # MAGIC **Run all 22 code cells.** Install `requirements-demo-lock.txt` in the notebook environment first.
-# MAGIC The lineage, operational events and reviewer actions are fictional fixtures. No notifications are sent.
+# MAGIC The lineage, operational events and reviewer actions are synthetic fixtures. No notifications are sent.
 # MAGIC
 # MAGIC **Interpretation:** A signal means a statistical rule fired, not that a real problem was confirmed.
 # MAGIC The classifier reproduces a rule-generated label from same-window measurements; it does not predict
 # MAGIC a future incident. The forecast is genuinely forward-looking, but its scores describe only this
-# MAGIC fictional dataset. Neither model decides whether a process problem occurred.
+# MAGIC synthetic dataset. Neither model decides whether a process problem occurred.
+# MAGIC
+# MAGIC **Where the SPC rules end and machine learning begins:** Cells 1–4 create the synthetic data and apply deterministic SPC rules. SPC label construction finishes in Cell 4; machine learning first appears in Cell 5. Later cells alternate between statistical analysis and machine learning, and each cell's **Type** line names its method.
+# MAGIC
+# MAGIC | Lifecycle stage | Cells | Method |
+# MAGIC | --- | --- | --- |
+# MAGIC | Problem framing and data preparation | 1–2, 4 | Synthetic data, validation and feature engineering |
+# MAGIC | Statistical detection and exploration | 3–4, 8–10 | Deterministic SPC rules and exploratory statistics |
+# MAGIC | Model selection and validation | 5–7, 11–13 | Machine learning; ARIMA and Holt-Winters are statistical forecasts |
+# MAGIC | Deployment and reuse | 19–20 and `SPC_Model_Scoring.py` | Saved model bundle, optional MLflow and Delta |
+# MAGIC | Monitoring and retraining review | 16–17, 21–22 | Error and drift checks; human approval |
+# MAGIC | Human decisions | 8, 15, 17–18, 22 | Analysts review evidence; no action is automated |
+# MAGIC
+# MAGIC The predictive model carried through saving, reuse and monitoring is the Cell 6 next-business-day count forecast. It predicts volume, not the next rule signal. The Cell 5 classifier only tests whether ML can copy the rules.
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ### Cell 1: Set the rules for this run
+# MAGIC **Type:** Setup — no statistics or machine learning yet.
 # MAGIC **Plain English:** Choose the random seed, how much history each rule reads, and whether to save results.
 # MAGIC **Technique:** Python libraries handle tables, numerical calculations, charts, and random forest models.
-# MAGIC **Check:** `OUTPUT_SCHEMA` is `ml_statistical_process_controls.demo_schema`. `SPC_DEMO_LOCAL_TEST=1` disables Delta and MLflow writes during local validation. `UC_MODEL_NAME` remains empty until candidate registration is configured.
+# MAGIC **Check:** `OUTPUT_SCHEMA` is `ml_statistical_process_controls.demo_schema`. `SPC_DEMO_LOCAL_TEST=1` disables Delta and MLflow writes during local validation. `ENABLE_MLFLOW = False` skips MLflow alone. `UC_MODEL_NAME` remains empty until candidate registration is configured.
 # MAGIC **Developer note:** Change the settings here, then rerun all cells so labels, splits, charts, and logged metrics agree.
 
 # COMMAND ----------
@@ -67,6 +81,9 @@ OUTPUT_SCHEMA = "ml_statistical_process_controls.demo_schema"
 LOCAL_TEST = os.environ.get("SPC_DEMO_LOCAL_TEST") == "1"
 if LOCAL_TEST:
     OUTPUT_SCHEMA = ""
+# Optional MLflow tracking. Cell 19 saves the portable model bundle first either way;
+# set False to skip MLflow without changing the Delta destination.
+ENABLE_MLFLOW = True
 # Optional: set to a permitted three-part catalog.schema.model name to register the model.
 # Leave empty until the notebook and MLflow experiment work.
 UC_MODEL_NAME = ""
@@ -101,6 +118,7 @@ def show_dataframe_stage(title, frame, columns, *, grain, change, sample=None):
 
 # MAGIC %md
 # MAGIC ### Cell 2: Make a safe example dataset
+# MAGIC **Type:** Data preparation — synthetic events aggregated to daily counts.
 # MAGIC **Plain English:** Create over one million synthetic application events across three queues: Intake A and Intake B count application receipts; Completions A counts completed workflow steps. Receipts and completions are independent event streams, not a linked case lifecycle. We plant a few shifts for statistical review.
 # MAGIC **Technique:** A seeded process generates event volumes, then materializes individual event rows with unique IDs and timestamps. Normalize those rows and aggregate them to daily counts. Validate IDs, types, date coverage, nonnegative counts and exact reconciliation.
 # MAGIC **Output:** `raw_events_df` and `prepared_events_df` contain actual event rows; `daily_df` contains only 1,260 daily series observations. A million events does not mean a million independent training examples. `dataset_id` identifies this synthetic run.
@@ -108,7 +126,7 @@ def show_dataframe_stage(title, frame, columns, *, grain, change, sample=None):
 
 # COMMAND ----------
 
-# DBTITLE 1,Generate fictional operational series
+# DBTITLE 1,Generate synthetic operational series
 rng = np.random.default_rng(SEED)
 from pandas.tseries.holiday import USFederalHolidayCalendar
 from pandas.tseries.offsets import CustomBusinessDay
@@ -185,6 +203,7 @@ show_dataframe_stage(
 
 # MAGIC %md
 # MAGIC ### Cell 3: Define the three SPC checks
+# MAGIC **Type:** Statistics — deterministic SPC rules (XmR, CUSUM, EWMA); nothing is learned.
 # MAGIC **Plain English:** XmR notices unusually large individual values; CUSUM adds small departures from a past average; EWMA smooths recent values to reveal a shift.
 # MAGIC **Technique:** XmR uses the average moving range for limits. CUSUM accumulates deviations. EWMA gives newer observations more weight.
 # MAGIC **Dataframe walkthrough:** This cell defines functions; it does not transform rows yet. Cell 4 applies them.
@@ -230,6 +249,7 @@ def ewma_signal(window, baseline_mean, baseline_sigma):
 
 # MAGIC %md
 # MAGIC ### Cell 4: Turn past counts into signals and features
+# MAGIC **Type:** Statistics — rule flags plus model-ready features. SPC label construction finishes here; these flags are final.
 # MAGIC **Plain English:** For each date, inspect the prior 25 business days. XmR derives limits from that window; CUSUM and EWMA use an earlier 90-day reference period. Save which SPC check fired.
 # MAGIC **Technique:** Rolling-window feature engineering produces means, variation, recent trend, and distance from the baseline. `signal_detected` is `xmr_signal OR cusum_signal OR ewma_signal`.
 # MAGIC **Output:** `window_features_df` holds the measurements; joining four rule-label columns creates `signals_df`, which feeds the later models.
@@ -267,7 +287,7 @@ for series_id, group in daily_df.groupby("series_id", sort=True):
             "max_window_deviation": float(np.max(np.abs(window - center)) / max(mr_bar, 1e-6)),
             "xmr_signal": xmr, "cusum_signal": cusum, "ewma_signal": ewma,
             "signal_detected": bool(xmr or cusum or ewma),
-            "source_name": "fictional_operational_feed", "dataset_id": DATASET_ID,
+            "source_name": "synthetic_application_events", "dataset_id": DATASET_ID,
         })
 
 rule_columns = ["xmr_signal", "cusum_signal", "ewma_signal", "signal_detected"]
@@ -297,6 +317,7 @@ show_dataframe_stage(
 
 # MAGIC %md
 # MAGIC ### Cell 5: Test whether ML can copy the rule label
+# MAGIC **Type:** Machine learning first appears — a supervised classifier tested on the rule label. It copies the rules; it does not forecast.
 # MAGIC **Plain English:** Train on earlier dates and ask a random forest if the SPC rules fired on later dates.
 # MAGIC **Technique:** A chronological holdout separates the 25-day train and test windows. The earlier 90-day reference histories can overlap; all inputs still precede their run date. Compare accuracy with constant predictions, and read precision, recall, F1, and ROC AUC.
 # MAGIC **Output:** `predictions_df` holds the model calls; `metrics` holds both model and simple-baseline scores.
@@ -308,7 +329,7 @@ show_dataframe_stage(
 # Each feature is known at the end of the 25-day window; no future values are inputs.
 # The evaluation starts 25 business days after training ends, so the 25-day
 # measurement windows cannot overlap. Earlier 90-day reference histories can overlap.
-# Metrics describe rule reproduction on fictional data, not real-world performance.
+# Metrics describe rule reproduction on synthetic data, not real-world performance.
 feature_cols = ["window_mean", "window_std", "window_range", "mr_mean",
                 "last_value", "last_5_mean", "last_5_std", "trend", "baseline_mean", "baseline_sigma",
                 "max_baseline_deviation", "max_window_deviation"]
@@ -340,6 +361,7 @@ metrics = {
     "roc_auc": roc_auc_score(y_test, prob),
     "majority_baseline_accuracy": accuracy_score(y_test, baseline_pred),
     "always_signal_accuracy": float(y_test.mean()),
+    "always_signal_f1": float(f1_score(y_test, np.ones(len(y_test), dtype=int), zero_division=0)),
     "always_no_signal_accuracy": float(1 - y_test.mean()),
     "test_signal_rate": float(y_test.mean()),
 }
@@ -347,6 +369,8 @@ print(f"Training: {len(train_df)} rows through {train_df.run_date.max().date()}"
 print(f"Test: {len(test_df)} rows from {test_df.run_date.min().date()} to {test_df.run_date.max().date()}")
 print(f"Training signal rate: {y_train.mean():.1%}; test signal rate: {y_test.mean():.1%}")
 print(pd.Series(metrics).round(3).to_string())
+print("majority_baseline_accuracy always predicts the training-majority class; always_signal_* predicts a signal for every test window.")
+print(f"F1: classifier {metrics['f1']:.3f} versus always-signal {metrics['always_signal_f1']:.3f}.")
 if metrics["accuracy"] <= max(metrics["majority_baseline_accuracy"], metrics["always_signal_accuracy"]):
     print("The classifier did not beat both simple constant baselines on this test. Use the rules directly.")
 else:
@@ -367,6 +391,7 @@ show_dataframe_stage(
 
 # MAGIC %md
 # MAGIC ### Cell 6: Predict one future business-day count
+# MAGIC **Type:** Machine learning — supervised regression predicting the next business-day count. This model is saved, reused and monitored.
 # MAGIC **Plain English:** Use information available yesterday to estimate today's workload before today's count arrives.
 # MAGIC **Technique:** A random forest regressor learns from past counts, recent trend, weekday, and series. A later-date test with a gap compares mean absolute error (MAE) to the simple five-day moving average.
 # MAGIC **Output:** `forecast_results_df` holds actual and predicted counts; `forecast_metrics` reports errors in **daily-count units**.
@@ -388,6 +413,8 @@ forecast_features = ["series_id", "weekday", "last_value", "last_5_mean",
 forecast_X = pd.get_dummies(forecast_df[forecast_features], columns=["series_id"], dtype=float)
 forecast_train = forecast_df["run_date"].le(unique_dates[cut_index])
 forecast_test = forecast_df["run_date"].ge(unique_dates[test_index + 1])
+# The held-out period on the configured business calendar; monitoring measures coverage against it.
+forecast_test_dates = dates[dates >= unique_dates[test_index + 1]]
 assert forecast_df.loc[forecast_train, "run_date"].max() < forecast_df.loc[forecast_test, "window_start"].min()
 forecast_model = RandomForestRegressor(
     n_estimators=120, max_depth=7, min_samples_leaf=4, random_state=SEED, n_jobs=-1
@@ -430,6 +457,7 @@ else:
 
 # MAGIC %md
 # MAGIC ### Cell 7: Draw the evidence
+# MAGIC **Type:** Evidence charts — SPC control chart, classifier confusion matrix and forecast check.
 # MAGIC **Plain English:** The first chart shows recent counts and XmR limits. The second shows which rule labels the classifier matched or missed. The third compares the forecast with later observed counts.
 # MAGIC **Technique:** Matplotlib draws the time series; a confusion matrix displays true and false classifier calls on the held-out dates.
 # MAGIC **Read carefully:** A circle means **any** rule fired somewhere in the past 25-day window. The point under the circle does not have to cross the displayed XmR limit.
@@ -448,7 +476,7 @@ ax.plot(chart_df.run_date, chart_df.lcl, color="#B8603C", linestyle=":", label="
 marked = chart_df[chart_df.signal_detected]
 ax.scatter(marked.run_date, marked.last_value, facecolor="white", edgecolor="#853B32",
            s=30, linewidth=1.2, label="Rule signal for 25-day window")
-ax.set(title="Fictional SPC history — Intake A (last 90 runs)", xlabel="Run date", ylabel="Daily count")
+ax.set(title="Synthetic SPC history — Intake A (last 90 runs)", xlabel="Run date", ylabel="Daily count")
 ax.legend(loc="upper left", fontsize=8)
 fig.text(0.08, 0.01, "Circles mean any rule fired in the prior 25 days; the plotted point need not cross an XmR limit.",
          fontsize=8, color="#444444")
@@ -477,6 +505,7 @@ plt.show()
 
 # MAGIC %md
 # MAGIC ### Cell 8: Give people a manageable review list
+# MAGIC **Type:** Statistics and human review — rule signals become analyst review episodes.
 # MAGIC **Plain English:** Consecutive days of rule flags for one series become one review episode instead of a new alert every day.
 # MAGIC **Technique:** Group-by and a cumulative count identify each contiguous run of signals. Basic data and model health indicators go into `monitoring_df`.
 # MAGIC **Output:** `review_df` shows the 15 episodes with the latest signal dates, their rules, and a pending disposition. The printed total counts **all** episodes.
@@ -547,6 +576,7 @@ display(monitoring_df) if "display" in globals() else print(monitoring_df.to_str
 
 # MAGIC %md
 # MAGIC ### Cell 9: Add severity and inspect the data
+# MAGIC **Type:** Statistics — severity zones and exploratory analysis (distributions, correlations).
 # MAGIC **Plain English:** A yes/no flag tells us to look. Zone checks add an indication of how unusual the latest pattern is.
 # MAGIC **Method:** Moving-range sigma, a latest-point three-sigma check, 2-of-3 beyond two sigma, 4-of-5 beyond one sigma, and eight on one side. These are demo choices, not calibrated agency thresholds.
 # MAGIC **Show:** Severity counts, per-series distributions and correlations. A correlation does not establish cause.
@@ -593,7 +623,7 @@ pivot_counts = daily_df.pivot(index="run_date", columns="series_id", values="dai
 fig, axes = plt.subplots(1, 2, figsize=(12, 4))
 for sid in pivot_counts:
     axes[0].hist(pivot_counts[sid], bins=25, alpha=.45, label=sid)
-axes[0].set(title="Fictional daily-count distributions", xlabel="Daily count", ylabel="Days")
+axes[0].set(title="Synthetic daily-count distributions", xlabel="Daily count", ylabel="Days")
 axes[0].legend(fontsize=8)
 corr = pivot_counts.corr()
 im = axes[1].imshow(corr, vmin=-1, vmax=1, cmap="coolwarm")
@@ -609,7 +639,8 @@ plt.tight_layout(); plt.show()
 # COMMAND ----------
 # MAGIC %md
 # MAGIC ### Cell 10: Find which subgroup changed
-# MAGIC **Plain English:** Split each fictional daily count between two offices, then investigate shifts inside each office.
+# MAGIC **Type:** Statistics — subgroup (office) exploratory analysis.
+# MAGIC **Plain English:** Split each synthetic daily count between two offices, then investigate shifts inside each office.
 # MAGIC **Method:** Counts reconcile to the parent series. Past-only rolling z-scores and workload shares support subgroup investigation; cardinality, placeholder and duplicate-dimension checks keep categories useful.
 # MAGIC **Boundary:** These are invented office and channel labels, with no agency records or claims about people.
 
@@ -657,14 +688,15 @@ show_dataframe_stage(
 fig, ax = plt.subplots(figsize=(11, 4))
 for office, group in subgroup_df[subgroup_df.series_id == "Intake A"].groupby("office"):
     ax.plot(group.run_date.tail(90), group.workload_share.tail(90), label=office)
-ax.set(title="Fictional workload mix — Intake A", ylabel="Share of parent daily count", xlabel="Date")
+ax.set(title="Synthetic workload mix — Intake A", ylabel="Share of parent daily count", xlabel="Date")
 ax.legend(); fig.autofmt_xdate(); plt.tight_layout(); plt.show()
 
 # COMMAND ----------
 # MAGIC %md
 # MAGIC ### Cell 11: Compare classifiers across five later periods
+# MAGIC **Type:** Machine learning — model comparison: random forest, logistic regression and constant baselines.
 # MAGIC **Plain English:** Compare random forest and logistic regression over several time periods, not just one favorable split.
-# MAGIC **Method:** Five expanding training windows, shared date boundaries across series, and a 25-business-day separation of measurement windows. Scaling fits only on training rows. The RF settings exactly match Cell 5; these later-period folds are a separate diagnostic, not an untouched holdout for model selection. Compare each fold with a training-majority baseline.
+# MAGIC **Method:** Five expanding training windows, shared date boundaries across series, and a 25-business-day separation of measurement windows. Scaling fits only on training rows. The RF settings exactly match Cell 5; these later-period folds are a separate diagnostic, not an untouched holdout for model selection. Compare each fold with training-majority and always-signal baselines.
 # MAGIC **Decision:** Both models still imitate known rules. Fold scores and feature importance describe this experiment, not mission value or causality.
 
 # COMMAND ----------
@@ -699,7 +731,8 @@ for fold, start in enumerate(np.linspace(155, len(unique_dates)-30, 5, dtype=int
                              "accuracy": accuracy_score(te.signal_detected, calls),
                              "f1": f1_score(te.signal_detected, calls, zero_division=0),
                              "auc": roc_auc_score(te.signal_detected, scores) if te.signal_detected.nunique()==2 else np.nan,
-                             "majority_accuracy": accuracy_score(te.signal_detected, np.full(len(te), majority))})
+                             "majority_accuracy": accuracy_score(te.signal_detected, np.full(len(te), majority)),
+                             "always_signal_f1": f1_score(te.signal_detected.astype(int), np.ones(len(te), dtype=int), zero_division=0)})
         fold_predictions.extend([{"fold":fold,"model":name,"truth":bool(y),"prediction":bool(p)} for y,p in zip(te.signal_detected,calls)])
         if name == "Logistic regression": logistic_model = candidate
 fold_metrics_df = pd.DataFrame(fold_metrics)
@@ -707,6 +740,8 @@ fold_metrics_df = pd.DataFrame(fold_metrics)
 logistic_model = make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000, random_state=SEED))
 logistic_model.fit(X_train, y_train)
 print(fold_metrics_df.round(3).to_string(index=False))
+print("Mean F1 by model:", fold_metrics_df.groupby("model").f1.mean().round(3).to_dict(),
+      "| always-signal mean F1:", round(float(fold_metrics_df[fold_metrics_df.model == "Random forest"].always_signal_f1.mean()), 3))
 importance = permutation_importance(model, X_test, y_test, n_repeats=3, random_state=SEED, scoring="accuracy")
 importance_df = pd.DataFrame({"feature":feature_cols,"accuracy_drop":importance.importances_mean}).sort_values("accuracy_drop", ascending=False)
 fig, axes = plt.subplots(1,2,figsize=(12,4))
@@ -722,6 +757,7 @@ plt.tight_layout(); plt.show()
 # COMMAND ----------
 # MAGIC %md
 # MAGIC ### Cell 12: Forecast five business days and test the alternatives
+# MAGIC **Type:** Statistical forecasting — ARIMA and Holt-Winters time-series models compared with seasonal naive.
 # MAGIC **Plain English:** Compare five-day ARIMA and Holt-Winters forecasts with the simple guess that the next five values repeat the previous five. Then generate actual future-date forecasts, including offices.
 # MAGIC **Method:** Six nonoverlapping forecast origins, five steps each, fit only on history at each origin. The last origin is held aside for lifecycle comparison; earlier origins choose the candidate. US federal holidays are excluded from the calendar.
 # MAGIC **Boundary:** Five business observations are a compact seasonal approximation; holiday weeks can differ. Show errors and keep the baseline if it wins.
@@ -783,7 +819,7 @@ print("Subgroup forecasts fit independently and need not sum to the parent forec
 print(future_forecasts_df.tail(10).round(2).to_string(index=False))
 fig,ax=plt.subplots(figsize=(11,4))
 g=daily_df[daily_df.series_id=="Intake A"].tail(25)
-ax.plot(g.run_date,g.daily_count,label="Observed fictional counts",color="#145A7D")
+ax.plot(g.run_date,g.daily_count,label="Observed synthetic counts",color="#145A7D")
 for method,group in future_forecasts_df[(future_forecasts_df.series_id=="Intake A")&(future_forecasts_df.office=="All")].groupby("model"):
     ax.plot(group.target_date,group.prediction,marker="o",label=method)
 ax.set(title="Five business days beyond the latest observation",xlabel="Date",ylabel="Daily count")
@@ -792,6 +828,7 @@ ax.legend(fontsize=8);fig.autofmt_xdate();plt.tight_layout();plt.show()
 # COMMAND ----------
 # MAGIC %md
 # MAGIC ### Cell 13: Look for unusual patterns without rule labels
+# MAGIC **Type:** Machine learning — unsupervised anomaly detection (Isolation Forest). It fits without labels; the demonstration's alert threshold uses the training SPC-rule prevalence.
 # MAGIC **Plain English:** Isolation Forest finds unusual combinations of measurements. It can disagree with SPC, which gives the analyst another question to investigate.
 # MAGIC **Method:** Five chronological folds, a contamination setting estimated only from training data and capped at 10%, then final fitting on the earlier training set. SPC agreement is a proxy check, not incident-detection accuracy.
 
@@ -820,15 +857,16 @@ fig,ax=plt.subplots(figsize=(11,3.5))
 g=anomaly_df[anomaly_df.series_id=="Intake A"]
 ax.plot(g.run_date,g.anomaly_score,label="Isolation Forest unusualness score")
 flagged=g[g.model_anomaly];ax.scatter(flagged.run_date,flagged.anomaly_score,color="#B8603C",label="Model flags")
-ax.set(title="Anomaly scores on later fictional observations",xlabel="Run date",ylabel="Higher = more unusual")
+ax.set(title="Anomaly scores on later synthetic observations",xlabel="Run date",ylabel="Higher = more unusual")
 ax.legend(fontsize=8);fig.autofmt_xdate();plt.tight_layout();plt.show()
 
 # COMMAND ----------
 # MAGIC %md
-# MAGIC ### Cell 14: Trace fictional inputs upstream
+# MAGIC ### Cell 14: Trace synthetic inputs upstream
+# MAGIC **Type:** Operations — lineage and freshness checks on fixture metadata; no modeling.
 # MAGIC **Plain English:** Follow a count back through the tables that produced it and inspect whether an upstream refresh was late.
 # MAGIC **Method:** Breadth-first graph traversal up to five hops, column mappings and timestamp-based freshness checks over fixture metadata.
-# MAGIC **Boundary:** The graph is a fictional fixture, not discovered Unity Catalog lineage. The traversal and checks execute locally.
+# MAGIC **Boundary:** The graph is a synthetic fixture, not discovered Unity Catalog lineage. The traversal and checks execute locally.
 
 # COMMAND ----------
 # DBTITLE 1,Fixture lineage and upstream freshness
@@ -865,6 +903,7 @@ print(upstream_profile_df.to_string(index=False))
 # COMMAND ----------
 # MAGIC %md
 # MAGIC ### Cell 15: Build an investigation hypothesis
+# MAGIC **Type:** Operations — rule-based investigation hypotheses for an analyst; no modeling.
 # MAGIC **Plain English:** Put the triggered rules, office changes, nearby events and upstream evidence beside each review episode.
 # MAGIC **Method:** Evidence joins produce reasons, with temporal checks before linking a late refresh. An event near a signal is an association, not a proven cause.
 # MAGIC **Show:** An invented capacity change and a delayed input batch. Evidence labels keep fixture facts distinct from analyst conclusions.
@@ -873,8 +912,8 @@ print(upstream_profile_df.to_string(index=False))
 # DBTITLE 1,Root-cause hypotheses and operational events
 change_date=daily_df[daily_df.series_id=="Intake A"].sort_values("run_date").run_date.iloc[355]
 events_df=pd.DataFrame([
-    {"event_id":"fixture-capacity","event_date":change_date,"series_id":"Intake A","event_type":"Capacity change","description":"Fictional office workload reallocation"},
-    {"event_id":"fixture-delay","event_date":replay_date.normalize(),"series_id":"Intake A","event_type":"Input delay","description":"Fictional raw-input batch arrived late"},
+    {"event_id":"fixture-capacity","event_date":change_date,"series_id":"Intake A","event_type":"Capacity change","description":"Synthetic office workload reallocation"},
+    {"event_id":"fixture-delay","event_date":replay_date.normalize(),"series_id":"Intake A","event_type":"Input delay","description":"Synthetic raw-input batch arrived late"},
 ])
 hypotheses=[]
 for row in review_df.itertuples():
@@ -896,6 +935,7 @@ print(events_df.to_string(index=False));print(hypotheses_df.head(6).to_string(in
 # COMMAND ----------
 # MAGIC %md
 # MAGIC ### Cell 16: Assess forecasts after actuals arrive
+# MAGIC **Type:** Model lifecycle — assess saved forecasts after actual counts arrive.
 # MAGIC **Plain English:** Keep past forecasts, match them to later observed counts, and decide whether enough evidence exists to reconsider a model.
 # MAGIC **Method:** Idempotent upsert keys preserve distinct forecast origins. Assess MAE, RMSE, sMAPE, bias and direction against the origin count. Earlier runs are superseded for current action; fewer than three actuals cannot trigger retraining.
 # MAGIC **Boundary:** This is a replay of several historical forecast runs. It demonstrates the feedback calculation, not a live retraining schedule.
@@ -947,6 +987,7 @@ ax.legend(fontsize=8);fig.autofmt_xdate();plt.tight_layout();plt.show()
 # COMMAND ----------
 # MAGIC %md
 # MAGIC ### Cell 17: Challenge the baseline and rehearse withdrawal
+# MAGIC **Type:** Model lifecycle and human approval — candidate comparison, withdrawal and rollback exercise.
 # MAGIC **Plain English:** A candidate must beat the current method on a separate period before a person would even consider a pilot. A reviewer can keep the baseline or withdraw a component.
 # MAGIC **Method:** Earlier forecast origins choose ARIMA versus Holt-Winters. The last origin compares that candidate with seasonal naive. A 2% improvement is a demo threshold. The small sample supports advisory use only.
 # MAGIC **Boundary:** Local lifecycle records and explicit exercise approvals illustrate version selection and rollback. They do not grant production authorization or alter a real registry alias.
@@ -969,7 +1010,7 @@ def rehearse_registry_change(active_version, candidate_version, approved, rollba
         return active_version, "blocked: exercise approval absent"
     return candidate_version, "rollback" if rollback else "select candidate"
 
-exercise_rows=[{"step":1,"active_version":"baseline-v1","action":"Initial fictional registry state","actor":"Exercise fixture"}]
+exercise_rows=[{"step":1,"active_version":"baseline-v1","action":"Initial simulated registry state","actor":"Exercise fixture"}]
 active_version="baseline-v1"
 assert rehearse_registry_change(active_version,"candidate-v1",False)[0]==active_version
 for step,target,rollback in [(2,"candidate-v1",False),(3,"baseline-v1",True)]:
@@ -982,6 +1023,7 @@ print(lifecycle_df.to_string(index=False));print(registry_exercise_df.to_string(
 # COMMAND ----------
 # MAGIC %md
 # MAGIC ### Cell 18: Replay the daily operating loop
+# MAGIC **Type:** Operations and human review — replayed daily loop with unsent notices.
 # MAGIC **Plain English:** Replay three observation dates, prepare one review notice per episode, suppress repeats, and record an example analyst disposition separately from the pending queue.
 # MAGIC **Method:** Stable episode keys make repeated preparation idempotent. The dashboard summarizes the current replay. No email, chat or external notification is sent.
 # MAGIC **Boundary:** Job configuration and SQL queries accompany this notebook. Scheduling, delivery connectors and actual analyst authorization still require the target workspace and named owners.
@@ -998,11 +1040,13 @@ for day in replay_days:
                            "episode_id":int(row.episode_id),"status":"suppressed_repeat" if key in seen_episodes else "prepared_not_sent",
                            "delivery":"No external connector"})
         seen_episodes.add(key)
-outbox_df=pd.DataFrame(outbox_rows)
+outbox_df=pd.DataFrame(outbox_rows, columns=[
+    "dataset_id", "run_date", "series_id", "episode_id", "status", "delivery",
+]).astype({"run_date": "datetime64[ns]", "episode_id": "int64"})
 # Explicitly seeded analyst exercise. The actual proposed review_df stays pending.
 operator_disposition_df=review_df.head(1)[["series_id","episode_id"]].copy()
 operator_disposition_df["disposition"]="Investigate source refresh"
-operator_disposition_df["actor"]="Fictional reviewer exercise"
+operator_disposition_df["actor"]="Simulated reviewer exercise"
 operator_disposition_df["action_taken"]="No operational action"
 dashboard_df=pd.DataFrame([
     {"measure":"Rule-flagged windows","value":int(signals_df.signal_detected.sum())},
@@ -1016,7 +1060,7 @@ fig,ax=plt.subplots(figsize=(11,3.5))
 bars=ax.barh(dashboard_df.measure.iloc[::-1],dashboard_df.value.iloc[::-1],color="#145A7D")
 ax.bar_label(bars,padding=4)
 ax.set_xlim(0,float(dashboard_df.value.max())*1.12)
-ax.set(title="Local operating dashboard — fictional historical replay",xlabel="Count")
+ax.set(title="Local operating dashboard — synthetic historical replay",xlabel="Count")
 plt.tight_layout();plt.show()
 print("Delivery integration is off. Replaying history demonstrates the logic, not a live service.")
 
@@ -1025,14 +1069,30 @@ print("Delivery integration is off. Replaying history demonstrates the logic, no
 
 # MAGIC %md
 # MAGIC ### Cell 19: Record how each model was made
+# MAGIC **Type:** Deployment — log models to MLflow when available and save the reusable model bundle.
 # MAGIC **Plain English:** Save parameters, scores, and four trained models so another person can inspect this run.
 # MAGIC **Technique:** MLflow experiment tracking stores run metadata and artifacts. Model registration in Unity Catalog is optional.
-# MAGIC **Output:** A run ID in Databricks; if `UC_MODEL_NAME` is set and access is granted, four registered candidate model versions with demo tags and aliases.
+# MAGIC **Output:** The portable model bundle, saved first; a run ID in Databricks when `ENABLE_MLFLOW` is on; if `UC_MODEL_NAME` is set and access is granted, four registered candidate model versions with demo tags and aliases. An MLflow failure is printed and kept in `MLFLOW_STATUS`; it does not stop later cells.
 # MAGIC **Developer note:** An MLflow run preserves evidence of this execution. Reproducing it also requires the notebook revision, package versions, input dataset ID, and environment to be recorded.
 
 # COMMAND ----------
 
 # DBTITLE 1,Log the result in MLflow when available
+# Save the portable inference bundle first, so an optional MLflow outage cannot block it.
+# A manually imported notebook still runs without the helper; the message below says so.
+helper_dir = Path(__file__).resolve().parent if "__file__" in globals() else Path.cwd()
+if not (helper_dir / "model_reuse.py").exists():
+    helper_dir = Path.cwd() / "notebooks"
+saved_forecast_manifest = None
+bundle_dir = os.environ.get("SPC_DEMO_MODEL_DIR", "artifacts/saved_forecast")
+if (helper_dir / "model_reuse.py").exists():
+    sys.path.insert(0, str(helper_dir))
+    from model_reuse import record_model_uri, save_forecast_bundle
+    saved_forecast_manifest = save_forecast_bundle(forecast_model, forecast_X.loc[forecast_test].head(12), bundle_dir)
+    print("Saved forecast bundle with ordered numeric input contract; use SPC_Model_Scoring.py to score without training.")
+else:
+    print("Portable bundle helper absent: the separate scoring notebook is NOT ready. Upload model_reuse.py as a Python file alongside this notebook and rerun to create the bundle and manifest. MLflow logging alone does not create that bundle.")
+
 try:
     from inspect import signature
     import mlflow
@@ -1040,75 +1100,71 @@ try:
 except ImportError:
     mlflow = None
 
-if LOCAL_TEST or mlflow is None:
-    print("MLflow logging is disabled for local tests or unavailable in this environment.")
+# Clear model info from any earlier run of this cell so a failed run cannot reuse a stale URI.
+classifier_model_info = forecast_model_info = logistic_model_info = anomaly_model_info = None
+if LOCAL_TEST or not ENABLE_MLFLOW:
+    MLFLOW_STATUS = "disabled"
+    print("MLflow logging is disabled (local test mode or ENABLE_MLFLOW = False).")
+elif mlflow is None:
+    MLFLOW_STATUS = "unavailable"
+    print("MLflow is not installed here; the portable bundle is the saved-model route.")
 else:
-    # Databricks notebooks automatically use their notebook experiment.
-    # MLflow 2 uses artifact_path; MLflow 3 uses name for logged models.
-    model_parameters = signature(mlflow.sklearn.log_model).parameters
-    model_path_arg = "name" if "name" in model_parameters else "artifact_path"
-    model_serialization_args = {"serialization_format": "cloudpickle"} if "serialization_format" in model_parameters else {}
-    with mlflow.start_run(run_name="attainx_spc_demo_models") as run:
-        mlflow.log_params({"source": "fictional", "seed": SEED, "window": WINDOW,
-                           "dataset_id": DATASET_ID, "baseline_days": BASELINE_DAYS, "model": "random_forest",
-                           "n_estimators": 100, "max_depth": 8})
-        mlflow.log_metrics(metrics)
-        mlflow.log_metrics(forecast_metrics)
-        classifier_model_info = mlflow.sklearn.log_model(
-            model, **{model_path_arg: "model"}, input_example=X_train.head(2), **model_serialization_args
-        )
-        forecast_model_info = mlflow.sklearn.log_model(
-            forecast_model, **{model_path_arg: "count_forecast"}, input_example=forecast_X.head(2), **model_serialization_args
-        )
-        logistic_model_info = mlflow.sklearn.log_model(
-            logistic_model, **{model_path_arg: "logistic_classifier"}, input_example=X_train.head(2), **model_serialization_args
-        )
-        anomaly_model_info = mlflow.sklearn.log_model(
-            iso_model, **{model_path_arg: "isolation_forest"}, input_example=X_train.head(2), **model_serialization_args
-        )
-        mlflow.log_metrics({"five_day_" + row.model.lower().replace("-", "_").replace(" ", "_") + "_mae": float(row.mae)
-                            for row in five_day_metrics_df.itertuples()})
-        print("MLflow run ID:", run.info.run_id)
-        print("Logged model URIs:", classifier_model_info.model_uri, forecast_model_info.model_uri, logistic_model_info.model_uri, anomaly_model_info.model_uri)
-        print("Five-day statsmodels forecasts and evaluations are in forecast tables; those fitted models are not logged by this cell.")
-        if UC_MODEL_NAME:
-            assert re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*", UC_MODEL_NAME), (
-                "Set UC_MODEL_NAME to a permitted catalog.schema.model using simple identifiers."
+    try:
+        # Databricks notebooks automatically use their notebook experiment.
+        # MLflow 2 uses artifact_path; MLflow 3 uses name for logged models.
+        model_parameters = signature(mlflow.sklearn.log_model).parameters
+        model_path_arg = "name" if "name" in model_parameters else "artifact_path"
+        model_serialization_args = {"serialization_format": "cloudpickle"} if "serialization_format" in model_parameters else {}
+        with mlflow.start_run(run_name="attainx_spc_demo_models") as run:
+            mlflow.log_params({"source": "synthetic", "seed": SEED, "window": WINDOW,
+                               "dataset_id": DATASET_ID, "baseline_days": BASELINE_DAYS, "model": "random_forest",
+                               "n_estimators": 100, "max_depth": 8})
+            mlflow.log_metrics(metrics)
+            mlflow.log_metrics(forecast_metrics)
+            classifier_model_info = mlflow.sklearn.log_model(
+                model, **{model_path_arg: "model"}, input_example=X_train.head(2), **model_serialization_args
             )
-            mlflow.set_registry_uri("databricks-uc")
-            client = mlflow.MlflowClient()
-            for suffix, info in [("", classifier_model_info), ("_count", forecast_model_info),
-                                 ("_logistic", logistic_model_info), ("_anomaly", anomaly_model_info)]:
-                name = UC_MODEL_NAME + suffix
-                registered = mlflow.register_model(info.model_uri, name)
-                client.set_model_version_tag(name, registered.version, "demo_only", "true")
-                client.set_registered_model_alias(name, "demo_candidate", registered.version)
-                print("Registered demo candidate:", name, "version", registered.version)
-            print("No production alias changed. Lifecycle and rollback exercises remain local.")
-
-# Save a portable inference bundle when the companion helper is available. A manually
-# imported notebook still runs without that file; MLflow remains its saved-model route.
-helper_dir = Path(__file__).resolve().parent if "__file__" in globals() else Path.cwd()
-if not (helper_dir / "model_reuse.py").exists():
-    helper_dir = Path.cwd() / "notebooks"
-saved_forecast_manifest = None
-if (helper_dir / "model_reuse.py").exists():
-    sys.path.insert(0, str(helper_dir))
-    from model_reuse import save_forecast_bundle
-    saved_forecast_manifest = save_forecast_bundle(
-        forecast_model, forecast_X.loc[forecast_test].head(12),
-        os.environ.get("SPC_DEMO_MODEL_DIR", "artifacts/saved_forecast"),
-        model_uri=forecast_model_info.model_uri if "forecast_model_info" in globals() else None,
-    )
-    print("Saved forecast bundle with ordered numeric input contract; use SPC_Model_Scoring.py to score without training.")
-else:
-    print("Portable bundle helper absent: the separate scoring notebook is NOT ready. Upload model_reuse.py as a Python file alongside this notebook and rerun to create the bundle and manifest. MLflow logging alone does not create that bundle.")
-
+            forecast_model_info = mlflow.sklearn.log_model(
+                forecast_model, **{model_path_arg: "count_forecast"}, input_example=forecast_X.head(2), **model_serialization_args
+            )
+            logistic_model_info = mlflow.sklearn.log_model(
+                logistic_model, **{model_path_arg: "logistic_classifier"}, input_example=X_train.head(2), **model_serialization_args
+            )
+            anomaly_model_info = mlflow.sklearn.log_model(
+                iso_model, **{model_path_arg: "isolation_forest"}, input_example=X_train.head(2), **model_serialization_args
+            )
+            mlflow.log_metrics({"five_day_" + row.model.lower().replace("-", "_").replace(" ", "_") + "_mae": float(row.mae)
+                                for row in five_day_metrics_df.itertuples()})
+            print("MLflow run ID:", run.info.run_id)
+            print("Logged model URIs:", classifier_model_info.model_uri, forecast_model_info.model_uri, logistic_model_info.model_uri, anomaly_model_info.model_uri)
+            print("Five-day statsmodels forecasts and evaluations are in forecast tables; those fitted models are not logged by this cell.")
+            if UC_MODEL_NAME:
+                assert re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*", UC_MODEL_NAME), (
+                    "Set UC_MODEL_NAME to a permitted catalog.schema.model using simple identifiers."
+                )
+                mlflow.set_registry_uri("databricks-uc")
+                client = mlflow.MlflowClient()
+                for suffix, info in [("", classifier_model_info), ("_count", forecast_model_info),
+                                     ("_logistic", logistic_model_info), ("_anomaly", anomaly_model_info)]:
+                    name = UC_MODEL_NAME + suffix
+                    registered = mlflow.register_model(info.model_uri, name)
+                    client.set_model_version_tag(name, registered.version, "demo_only", "true")
+                    client.set_registered_model_alias(name, "demo_candidate", registered.version)
+                    print("Registered demo candidate:", name, "version", registered.version)
+                print("No production alias changed. Lifecycle and rollback exercises remain local.")
+        MLFLOW_STATUS = "logged"
+    except Exception as error:
+        MLFLOW_STATUS = f"failed: {type(error).__name__}: {error}"
+        print(f"MLflow logging FAILED ({MLFLOW_STATUS}). The portable bundle is unaffected and later cells continue.")
+    if forecast_model_info is not None and saved_forecast_manifest is not None:
+        saved_forecast_manifest = record_model_uri(bundle_dir, forecast_model_info.model_uri)
+        print("Recorded the logged forecast model URI in the bundle manifest.")
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ### Cell 20: Optionally retain queryable demo history
-# MAGIC **Plain English:** Save the fictional inputs and results for SQL inspection after confirming a dedicated writable demo schema.
+# MAGIC **Type:** Deployment — persist queryable results to Delta tables.
+# MAGIC **Plain English:** Save the synthetic inputs and results for SQL inspection after confirming a dedicated writable demo schema.
 # MAGIC **Method:** Keyed Delta MERGE preserves different forecast origins and replaces an identical replay, instead of deleting all previous runs. The configured destination is the dedicated demonstration schema; explicit local-test mode disables writes.
 # MAGIC **Boundary:** A new dedicated demo schema is recommended. This cell does not migrate incompatible old table schemas. Local tests check the merge contract; real Spark/Delta execution needs workspace verification.
 
@@ -1147,7 +1203,12 @@ if OUTPUT_SCHEMA:
             if pd.api.types.is_datetime64_any_dtype(output_frame[col]):
                 output_frame[col] = output_frame[col].dt.strftime("%Y-%m-%dT%H:%M:%S")
         view = "spc_demo_" + table_name
-        spark.createDataFrame(output_frame).createOrReplaceTempView(view)
+        if table_name == "notification_outbox" and output_frame.empty:
+            # Spark cannot infer an empty outbox; retain the same schema as a populated run.
+            spark_frame = spark.createDataFrame([], "dataset_id STRING, run_date STRING, series_id STRING, episode_id BIGINT, status STRING, delivery STRING")
+        else:
+            spark_frame = spark.createDataFrame(output_frame)
+        spark_frame.createOrReplaceTempView(view)
         table = f"{OUTPUT_SCHEMA}.{table_name}"
         spark.sql(f"CREATE TABLE IF NOT EXISTS {table} USING DELTA AS SELECT * FROM {view} WHERE 1=0")
         on = " AND ".join(f"target.`{key}` = source.`{key}`" for key in keys)
@@ -1160,10 +1221,11 @@ else:
 
 # MAGIC %md
 # MAGIC ### Cell 21: Detect input changes and deteriorating predictions
+# MAGIC **Type:** Monitoring — input drift and prediction-error drift for the frozen forecast model.
 # MAGIC **Plain English:** Compare three numeric model inputs with their training distributions. Separately, compare forecast errors once actual counts arrive.
 # MAGIC **Method:** Three nonoverlapping 25-business-day holdout windows per series. The first is the performance reference; the next two are monitoring periods. The trained one-day model stays frozen.
 # MAGIC **Input drift:** Wasserstein distance divided by training standard deviation summarizes distribution change. Above 0.5 is an illustrative investigation threshold, not a significance test. We monitor `last_value`, `window_std` and `trend`, not every input.
-# MAGIC **Performance drift:** Bias is predicted minus actual; positive means overprediction. MAE is average absolute error in count units. Review after two consecutive complete windows exceed reference MAE by 25%. At least 20 matched actuals are required per window. Thresholds need calibration on real history.
+# MAGIC **Performance drift:** Bias is predicted minus actual; positive means overprediction. MAE is average absolute error in count units. Review after two consecutive complete windows exceed reference MAE by 25%. At least 20 matched actuals are required per window. Coverage counts expected business days from the configured calendar, so absent days reduce matched actuals. Thresholds need calibration on real history.
 # MAGIC **Exercise:** A separately labeled scenario adds 350 counts to outcomes in the two monitoring windows. Inputs and saved predictions stay unchanged. This tests the detector; it is not a new fitted model or a forecast backtest.
 # MAGIC **Decision:** Investigate data quality, seasonality and operational changes before retraining. These diagnostics do not establish concept drift or its cause.
 
@@ -1203,10 +1265,12 @@ def performance_status(n_actuals, reference_n, reference_mae, current_mae, previ
     return ("Watch: one worse window" if worse else "Within demo tolerance"), bool(worse)
 
 RUN_GENERATED_AT = pd.Timestamp.now(tz="UTC").isoformat()
-MODEL_IDENTITY = (forecast_model_info.model_uri if "forecast_model_info" in globals() else
+MODEL_IDENTITY = (forecast_model_info.model_uri if globals().get("forecast_model_info") is not None else
                   "local_sha256:" + saved_forecast_manifest["model_sha256"] if saved_forecast_manifest else
                   "in_memory_unregistered_one_day_rf_seed42")
-drift_dates = np.sort(forecast_results_df.run_date.unique())
+# Windows follow the configured business calendar, so absent days count against coverage
+# instead of silently shifting the window boundaries.
+drift_dates = np.asarray(forecast_test_dates, dtype="datetime64[ns]")
 drift_date_windows = [drift_dates[i:i + DRIFT_WINDOW] for i in range(0, len(drift_dates), DRIFT_WINDOW)]
 drift_input_rows, drift_performance_rows, drift_daily_parts = [], [], []
 for series_id, result_group in forecast_results_df.groupby("series_id"):
@@ -1216,7 +1280,9 @@ for series_id, result_group in forecast_results_df.groupby("series_id"):
         reference_mae = None
         reference_n = 0
         for window_number, window_dates in enumerate(drift_date_windows):
-            current = result_group[result_group.run_date.isin(window_dates)].sort_values("run_date").copy()
+            # Reindex to every expected business day; absent outcome rows become unmatched, visible gaps.
+            current = (result_group.set_index("run_date").reindex(pd.DatetimeIndex(window_dates, name="run_date"))
+                       .reset_index()[result_group.columns].assign(series_id=series_id, dataset_id=DATASET_ID))
             current["scenario"] = scenario
             current["window_number"] = window_number
             current["evaluation_actual"] = current.daily_count.astype(float)
@@ -1262,8 +1328,9 @@ for series_id, result_group in forecast_results_df.groupby("series_id"):
                     "window_start": pd.Timestamp(window_dates[0]),
                     "reference_n": int(reference_finite.sum()),
                     "current_n": int(current_finite.sum()),
-                    # Keep the persisted field name; invalid includes NaN and both infinities.
-                    "missing_rate": float((~current_finite).mean()) if len(current_finite) else np.nan,
+                    # Keep the persisted field name; absent days, NaN and both infinities all count
+                    # against the expected business days in this window.
+                    "missing_rate": float(1 - current_finite.sum() / len(window_dates)) if len(window_dates) else np.nan,
                     "status": "Insufficient variation or data" if not np.isfinite(score) else
                               ("Investigate input change" if score > DRIFT_INPUT_THRESHOLD else "Within demo tolerance"),
                 })
@@ -1277,6 +1344,7 @@ print("Model inputs and original forecast scores are unchanged. Drift exercise o
 
 # MAGIC %md
 # MAGIC ### Cell 22: Explain the evidence in a dashboard
+# MAGIC **Type:** Monitoring and human review — dashboard evidence for the analyst's decision.
 # MAGIC **Show:** Start with Recorded replay, choose a series, then switch to Performance drift exercise. Watch error cross the review threshold for two windows; input scores stay the same.
 # MAGIC **Read:** Overview connects actual counts, predictions and the simple baseline. Drift separates input change from error deterioration. Decisions explains investigation, retraining, validation and rollback.
 # MAGIC **Save:** Setting `OUTPUT_SCHEMA` in Cell 1 writes three additional demo tables below. Import `dashboards/AttainX_SPC_Demo.lvdash.json` in Databricks Dashboards and select your SQL warehouse. Its default catalog/schema must match `OUTPUT_SCHEMA` (or bind the JSON using the supplied script).
@@ -1342,7 +1410,7 @@ const D=__DASHBOARD_DATA__;const $=id=>document.getElementById(id);const esc=v=>
 function table(rows,cols){if(!rows.length)return '<p class="empty">No records in this selection.</p>';return '<table><thead><tr>'+cols.map(c=>'<th>'+esc(c[1])+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+cols.map(c=>'<td>'+esc(c[2]?c[2](r[c[0]]):r[c[0]])+'</td>').join('')+'</tr>').join('')+'</tbody></table>'}
 function line(rows,xfield,fields){const w=650,h=260,l=48,r=18,t=15,b=43;const times=rows.map(r=>Date.parse(r[xfield]));const lo=Math.min(...times),hi=Math.max(...times);const vals=rows.flatMap(r=>fields.map(f=>r[f[0]])).filter(Number.isFinite);const max=Math.max(1,...vals)*1.10;const x=i=>l+(times[i]-lo)/Math.max(1,hi-lo)*(w-l-r);const y=v=>h-b-v/max*(h-t-b);let svg=`<svg class="chart" role="img" aria-label="${fields.map(f=>esc(f[1])).join(', ')} over time" viewBox="0 0 ${w} ${h}">`;for(let i=0;i<=4;i++){let v=max*i/4;svg+=`<line x1="${l}" y1="${y(v)}" x2="${w-r}" y2="${y(v)}" stroke="#e5ebef"/><text x="${l-8}" y="${y(v)+4}" text-anchor="end">${v.toFixed(0)}</text>`}fields.forEach((f,k)=>{const points=rows.map((row,i)=>Number.isFinite(row[f[0]])?`${x(i)},${y(row[f[0]])}`:null);let segment=[];const flush=()=>{if(segment.length)svg+=`<polyline fill="none" stroke="${colors[k]}" stroke-width="2.3" ${k===2?'stroke-dasharray="5 4"':''} points="${segment.join(' ')}"/>`;segment=[]};points.forEach(p=>p?segment.push(p):flush());flush();if(rows.length<10)rows.forEach((row,i)=>{if(Number.isFinite(row[f[0]]))svg+=`<circle cx="${x(i)}" cy="${y(row[f[0]])}" r="4" fill="${colors[k]}"><title>${esc(date(row[xfield]))}: ${esc(f[1])} ${fmt(row[f[0]])}</title></circle>`})});[...new Set([0,Math.floor((rows.length-1)/2),rows.length-1])].forEach(i=>svg+=`<text x="${x(i)}" y="${h-14}" text-anchor="${i===0?'start':i===rows.length-1?'end':'middle'}">${date(rows[i][xfield])}</text>`);return svg+'</svg><div class="legend">'+fields.map((f,k)=>`<span><i class="dot" style="background:${colors[k]}"></i>${esc(f[1])}</span>`).join('')+'</div>'}
 function bars(rows){const max=Math.max(1,...rows.map(r=>r.shift_score||0))*1.15;const left=110,right=550;let out='<svg class="chart" role="img" aria-label="Input distribution changes compared with training" viewBox="0 0 650 260">';rows.forEach((r,i)=>{let y=30+i*65;out+=`<text x="0" y="${y+17}">${esc(r.feature)}</text><rect x="${left}" y="${y}" width="${Math.max(0,(r.shift_score||0)/max*(right-left))}" height="26" rx="3" fill="${r.shift_score>.5?'#d08029':'#116d88'}"/><text x="${left+(r.shift_score||0)/max*(right-left)+8}" y="${y+17}">${fmt(r.shift_score)}</text>`});const tx=left+.5/max*(right-left);out+=`<line x1="${tx}" x2="${tx}" y1="18" y2="216" stroke="#8a623c" stroke-dasharray="4 4"/><text x="${tx}" y="237" text-anchor="middle">0.5 threshold</text></svg>`;return out}
-function render(){$('data-scale').textContent=D.dataset_summary.event_rows.toLocaleString()+' materialized event rows aggregate to '+D.dataset_summary.daily_rows.toLocaleString()+' daily series observations. Models train on daily windows, not a million independent examples.';const series=$('series').value,scenario=$('scenario').value;const scope=r=>r.series_id===series&&r.scenario===scenario;const perf=D.performance.filter(scope).sort((a,b)=>a.window_number-b.window_number),latest=perf.at(-1),daily=D.daily.filter(scope).sort((a,b)=>a.run_date.localeCompare(b.run_date)),inputs=D.inputs.filter(r=>scope(r)&&r.window_number===latest.window_number);const exercise=scenario!=='Recorded replay';$('period').textContent=date(daily[0].run_date)+' – '+date(daily.at(-1).run_date)+' · '+daily.length+' matched daily records';$('notice').className='notice'+(exercise?' exercise':'');$('notice').textContent=exercise?'Controlled exercise: add 350 counts to outcomes after the reference window. Predictions and inputs stay frozen. These are scenario results.':'Recorded replay: the original synthetic counts and saved predictions. An input shift is a reason to investigate; deteriorating accuracy supplies separate evidence.';$('cards').innerHTML=[['Latest error',fmt(latest.mae)+' counts','Reference '+fmt(latest.reference_mae)+' · simple baseline '+fmt(latest.baseline_mae)],['Matched actuals',latest.n_actuals+' / '+latest.expected_actuals,'Latest window · '+date(latest.window_start)+' – '+date(latest.window_end)],['Review status',latest.status,'Two-window rule · no automatic model change']].map((v,i)=>`<div class="card"><div class="label">${v[0]}</div><div class="metric ${i===2?'badge '+(latest.status==='Within demo tolerance'?'good':'warn'):''}">${esc(v[1])}</div><p class="label">${esc(v[2])}</p></div>`).join('');$('daily-chart').innerHTML=line(daily,'run_date',[['evaluation_actual',exercise?'Exercise outcome':'Actual count'],['predicted_count','Frozen model forecast'],['trailing_mean_baseline','Trailing five-day mean']]);$('error-chart').innerHTML=line(perf,'window_end',[['mae','Model MAE'],['baseline_mae','Simple baseline MAE'],['review_threshold','Review threshold']]);$('input-chart').innerHTML=bars(inputs);$('performance-table').innerHTML=table(perf,[['window_number','Window',v=>v===0?'0 · Reference':v+' · Monitor'],['window_end','Through',date],['n_actuals','Actuals'],['mae','Model MAE',fmt],['baseline_mae','Baseline MAE',fmt],['bias','Bias (forecast − actual)',fmt],['status','Assessment']]);$('exercise-table').innerHTML=table(D.performance.filter(r=>r.series_id===series&&r.scenario==='Performance drift exercise'),[['window_number','Window'],['mae','Simulated MAE',fmt],['reference_mae','Reference MAE',fmt],['status','Assessment']]);$('decision-title').textContent=latest.status;$('decision-detail').textContent=latest.status==='Review for retraining'?'Two consecutive windows exceeded the demo error threshold. Open a review; verify data and causes before training a candidate.':latest.status==='Insufficient actuals'?'Evidence is insufficient or nonfinite. Resolve actuals and coverage before judging model health.':'This series has not met the two-window retraining-review rule. Continue monitoring and investigate any input or data-quality warnings.';$('review-table').innerHTML=table(D.reviews.filter(r=>r.series_id===series),[['episode_id','Episode'],['run_date','Started',date],['last_signal_date','Latest signal',date],['signal_windows','Flagged windows'],['disposition','Disposition']]);$('source').textContent='Model '+latest.model_type+' · '+latest.model_identity+' · Run '+latest.run_generated_at+' · Reference '+date(latest.reference_start)+' to '+date(latest.reference_end)+' · Source: notebook Cells 6, 8 and 21 · '+D.dataset+' · Frozen one-day RF, seed 42 · Historical replay, no live data refresh. Bias above zero means overprediction. Not a concept-drift diagnosis.'}
+function render(){$('data-scale').textContent=D.dataset_summary.event_rows.toLocaleString()+' materialized event rows aggregate to '+D.dataset_summary.daily_rows.toLocaleString()+' daily series observations. Models train on daily windows, not a million independent examples.';const series=$('series').value,scenario=$('scenario').value;const scope=r=>r.series_id===series&&r.scenario===scenario;const perf=D.performance.filter(scope).sort((a,b)=>a.window_number-b.window_number),latest=perf.at(-1),daily=D.daily.filter(scope).sort((a,b)=>a.run_date.localeCompare(b.run_date)),inputs=D.inputs.filter(r=>scope(r)&&r.window_number===latest.window_number);const exercise=scenario!=='Recorded replay';const matchedDays=daily.filter(r=>Number.isFinite(r.evaluation_actual)&&Number.isFinite(r.predicted_count)).length;$('period').textContent=date(daily[0].run_date)+' – '+date(daily.at(-1).run_date)+' · '+matchedDays+' of '+daily.length+' business days matched';$('notice').className='notice'+(exercise?' exercise':'');$('notice').textContent=exercise?'Controlled exercise: add 350 counts to outcomes after the reference window. Predictions and inputs stay frozen. These are scenario results.':'Recorded replay: the original synthetic counts and saved predictions. An input shift is a reason to investigate; deteriorating accuracy supplies separate evidence.';$('cards').innerHTML=[['Latest error',fmt(latest.mae)+' counts','Reference '+fmt(latest.reference_mae)+' · simple baseline '+fmt(latest.baseline_mae)],['Matched actuals',latest.n_actuals+' / '+latest.expected_actuals,'Latest window · '+date(latest.window_start)+' – '+date(latest.window_end)],['Review status',latest.status,'Two-window rule · no automatic model change']].map((v,i)=>`<div class="card"><div class="label">${v[0]}</div><div class="metric ${i===2?'badge '+(latest.status==='Within demo tolerance'?'good':'warn'):''}">${esc(v[1])}</div><p class="label">${esc(v[2])}</p></div>`).join('');$('daily-chart').innerHTML=line(daily,'run_date',[['evaluation_actual',exercise?'Exercise outcome':'Actual count'],['predicted_count','Frozen model forecast'],['trailing_mean_baseline','Trailing five-day mean']]);$('error-chart').innerHTML=line(perf,'window_end',[['mae','Model MAE'],['baseline_mae','Simple baseline MAE'],['review_threshold','Review threshold']]);$('input-chart').innerHTML=bars(inputs);$('performance-table').innerHTML=table(perf,[['window_number','Window',v=>v===0?'0 · Reference':v+' · Monitor'],['window_end','Through',date],['n_actuals','Actuals'],['mae','Model MAE',fmt],['baseline_mae','Baseline MAE',fmt],['bias','Bias (forecast − actual)',fmt],['status','Assessment']]);$('exercise-table').innerHTML=table(D.performance.filter(r=>r.series_id===series&&r.scenario==='Performance drift exercise'),[['window_number','Window'],['mae','Simulated MAE',fmt],['reference_mae','Reference MAE',fmt],['status','Assessment']]);$('decision-title').textContent=latest.status;$('decision-detail').textContent=latest.status==='Review for retraining'?'Two consecutive windows exceeded the demo error threshold. Open a review; verify data and causes before training a candidate.':latest.status==='Insufficient actuals'?'Evidence is insufficient or nonfinite. Resolve actuals and coverage before judging model health.':'This series has not met the two-window retraining-review rule. Continue monitoring and investigate any input or data-quality warnings.';$('review-table').innerHTML=table(D.reviews.filter(r=>r.series_id===series),[['episode_id','Episode'],['run_date','Started',date],['last_signal_date','Latest signal',date],['signal_windows','Flagged windows'],['disposition','Disposition']]);$('source').textContent='Model '+latest.model_type+' · '+latest.model_identity+' · Run '+latest.run_generated_at+' · Reference '+date(latest.reference_start)+' to '+date(latest.reference_end)+' · Source: notebook Cells 6, 8 and 21 · '+D.dataset+' · Frozen one-day RF, seed 42 · Historical replay, no live data refresh. Bias above zero means overprediction. Not a concept-drift diagnosis.'}
 document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b===button)));['overview','drift','exercise','decisions'].forEach(id=>$(id).hidden=id!==button.dataset.tab)}));$('activate-exercise').addEventListener('click',()=>{$('scenario').value='Performance drift exercise';render()});$('series').addEventListener('change',render);$('scenario').addEventListener('change',render);render();
 </script></body></html>'''.replace("__DASHBOARD_DATA__", json.dumps(dashboard_payload, allow_nan=False).replace("<", "\\u003c"))
 if "displayHTML" in globals():
@@ -1354,7 +1422,7 @@ else:
 # COMMAND ----------
 # MAGIC %md
 # MAGIC ## Closing talking points
-# MAGIC 1. These are fictional counts and fixture metadata, never USCIS performance measurements.
+# MAGIC 1. These are synthetic counts and fixture metadata, never USCIS performance measurements.
 # MAGIC 2. SPC flags and zones identify review candidates. The classifier imitates the historical rules; Isolation Forest offers a separate unusualness signal.
 # MAGIC 3. Compare one-day and five-day forecasts with simple baselines. The five-day forecast includes dates beyond the last observed count.
 # MAGIC 4. Office shifts, lineage and events support hypotheses. An analyst must verify cause and record a real decision.

@@ -28,7 +28,7 @@
       "model_version": "one_day_rf_seed42_frozen",
       "model_type": "RandomForestRegressor",
       "model_identity": "local_sha256:f3461f2c54e5b3748930894f64e4938fbbd3f7516314f2135ca98cecd373becf",
-      "run_generated_at": "2026-09-23T23:04:36.411280+00:00",
+      "run_generated_at": "2026-09-24T17:05:08.803460+00:00",
       "reference_start": "2026-05-21T00:00:00.000",
       "reference_end": "2026-06-26T00:00:00.000",
       "training_start": "2025-06-20T00:00:00.000",
@@ -53,7 +53,7 @@
       "model_version": "one_day_rf_seed42_frozen",
       "model_type": "RandomForestRegressor",
       "model_identity": "local_sha256:f3461f2c54e5b3748930894f64e4938fbbd3f7516314f2135ca98cecd373becf",
-      "run_generated_at": "2026-09-23T23:04:36.411280+00:00",
+      "run_generated_at": "2026-09-24T17:05:08.803460+00:00",
       "reference_start": "2026-05-21T00:00:00.000",
       "reference_end": "2026-06-26T00:00:00.000",
       "training_start": "2025-06-20T00:00:00.000",
@@ -78,7 +78,7 @@
       "model_version": "one_day_rf_seed42_frozen",
       "model_type": "RandomForestRegressor",
       "model_identity": "local_sha256:f3461f2c54e5b3748930894f64e4938fbbd3f7516314f2135ca98cecd373becf",
-      "run_generated_at": "2026-09-23T23:04:36.411280+00:00",
+      "run_generated_at": "2026-09-24T17:05:08.803460+00:00",
       "reference_start": "2026-05-21T00:00:00.000",
       "reference_end": "2026-06-26T00:00:00.000",
       "training_start": "2025-06-20T00:00:00.000",
@@ -103,7 +103,7 @@
       "model_version": "one_day_rf_seed42_frozen",
       "model_type": "RandomForestRegressor",
       "model_identity": "local_sha256:f3461f2c54e5b3748930894f64e4938fbbd3f7516314f2135ca98cecd373becf",
-      "run_generated_at": "2026-09-23T23:04:36.411280+00:00",
+      "run_generated_at": "2026-09-24T17:05:08.803460+00:00",
       "reference_start": "2026-05-21T00:00:00.000",
       "reference_end": "2026-06-26T00:00:00.000",
       "training_start": "2025-06-20T00:00:00.000",
@@ -128,7 +128,7 @@
       "model_version": "one_day_rf_seed42_frozen",
       "model_type": "RandomForestRegressor",
       "model_identity": "local_sha256:f3461f2c54e5b3748930894f64e4938fbbd3f7516314f2135ca98cecd373becf",
-      "run_generated_at": "2026-09-23T23:04:36.411280+00:00",
+      "run_generated_at": "2026-09-24T17:05:08.803460+00:00",
       "reference_start": "2026-05-21T00:00:00.000",
       "reference_end": "2026-06-26T00:00:00.000",
       "training_start": "2025-06-20T00:00:00.000",
@@ -153,7 +153,7 @@
       "model_version": "one_day_rf_seed42_frozen",
       "model_type": "RandomForestRegressor",
       "model_identity": "local_sha256:f3461f2c54e5b3748930894f64e4938fbbd3f7516314f2135ca98cecd373becf",
-      "run_generated_at": "2026-09-23T23:04:36.411280+00:00",
+      "run_generated_at": "2026-09-24T17:05:08.803460+00:00",
       "reference_start": "2026-05-21T00:00:00.000",
       "reference_end": "2026-06-26T00:00:00.000",
       "training_start": "2025-06-20T00:00:00.000",
@@ -178,7 +178,7 @@
       "model_version": "one_day_rf_seed42_frozen",
       "model_type": "RandomForestRegressor",
       "model_identity": "local_sha256:f3461f2c54e5b3748930894f64e4938fbbd3f7516314f2135ca98cecd373becf",
-      "run_generated_at": "2026-09-23T23:04:36.411280+00:00",
+      "run_generated_at": "2026-09-24T17:05:08.803460+00:00",
       "reference_start": "2026-05-21T00:00:00.000",
       "reference_end": "2026-06-26T00:00:00.000",
       "training_start": "2025-06-20T00:00:00.000",
@@ -203,7 +203,7 @@
       "model_version": "one_day_rf_seed42_frozen",
       "model_type": "RandomForestRegressor",
       "model_identity": "local_sha256:f3461f2c54e5b3748930894f64e4938fbbd3f7516314f2135ca98cecd373becf",
-      "run_generated_at": "2026-09-23T23:04:36.411280+00:00",
+      "run_generated_at": "2026-09-24T17:05:08.803460+00:00",
       "reference_start": "2026-05-21T00:00:00.000",
       "reference_end": "2026-06-26T00:00:00.000",
       "training_start": "2025-06-20T00:00:00.000",
@@ -228,7 +228,7 @@
       "model_version": "one_day_rf_seed42_frozen",
       "model_type": "RandomForestRegressor",
       "model_identity": "local_sha256:f3461f2c54e5b3748930894f64e4938fbbd3f7516314f2135ca98cecd373becf",
-      "run_generated_at": "2026-09-23T23:04:36.411280+00:00",
+      "run_generated_at": "2026-09-24T17:05:08.803460+00:00",
       "reference_start": "2026-05-21T00:00:00.000",
       "reference_end": "2026-06-26T00:00:00.000",
       "training_start": "2025-06-20T00:00:00.000",
@@ -253,7 +253,7 @@
       "model_version": "one_day_rf_seed42_frozen",
       "model_type": "RandomForestRegressor",
       "model_identity": "local_sha256:f3461f2c54e5b3748930894f64e4938fbbd3f7516314f2135ca98cecd373becf",
-      "run_generated_at": "2026-09-23T23:04:36.411280+00:00",
+      "run_generated_at": "2026-09-24T17:05:08.803460+00:00",
       "reference_start": "2026-05-21T00:00:00.000",
       "reference_end": "2026-06-26T00:00:00.000",
       "training_start": "2025-06-20T00:00:00.000",
@@ -278,7 +278,7 @@
       "model_version": "one_day_rf_seed42_frozen",
       "model_type": "RandomForestRegressor",
       "model_identity": "local_sha256:f3461f2c54e5b3748930894f64e4938fbbd3f7516314f2135ca98cecd373becf",
-      "run_generated_at": "2026-09-23T23:04:36.411280+00:00",
+      "run_generated_at": "2026-09-24T17:05:08.803460+00:00",
       "reference_start": "2026-05-21T00:00:00.000",
       "reference_end": "2026-06-26T00:00:00.000",
       "training_start": "2025-06-20T00:00:00.000",
@@ -303,7 +303,7 @@
       "model_version": "one_day_rf_seed42_frozen",
       "model_type": "RandomForestRegressor",
       "model_identity": "local_sha256:f3461f2c54e5b3748930894f64e4938fbbd3f7516314f2135ca98cecd373becf",
-      "run_generated_at": "2026-09-23T23:04:36.411280+00:00",
+      "run_generated_at": "2026-09-24T17:05:08.803460+00:00",
       "reference_start": "2026-05-21T00:00:00.000",
       "reference_end": "2026-06-26T00:00:00.000",
       "training_start": "2025-06-20T00:00:00.000",
@@ -328,7 +328,7 @@
       "model_version": "one_day_rf_seed42_frozen",
       "model_type": "RandomForestRegressor",
       "model_identity": "local_sha256:f3461f2c54e5b3748930894f64e4938fbbd3f7516314f2135ca98cecd373becf",
-      "run_generated_at": "2026-09-23T23:04:36.411280+00:00",
+      "run_generated_at": "2026-09-24T17:05:08.803460+00:00",
       "reference_start": "2026-05-21T00:00:00.000",
       "reference_end": "2026-06-26T00:00:00.000",
       "training_start": "2025-06-20T00:00:00.000",
@@ -353,7 +353,7 @@
       "model_version": "one_day_rf_seed42_frozen",
       "model_type": "RandomForestRegressor",
       "model_identity": "local_sha256:f3461f2c54e5b3748930894f64e4938fbbd3f7516314f2135ca98cecd373becf",
-      "run_generated_at": "2026-09-23T23:04:36.411280+00:00",
+      "run_generated_at": "2026-09-24T17:05:08.803460+00:00",
       "reference_start": "2026-05-21T00:00:00.000",
       "reference_end": "2026-06-26T00:00:00.000",
       "training_start": "2025-06-20T00:00:00.000",
@@ -378,7 +378,7 @@
       "model_version": "one_day_rf_seed42_frozen",
       "model_type": "RandomForestRegressor",
       "model_identity": "local_sha256:f3461f2c54e5b3748930894f64e4938fbbd3f7516314f2135ca98cecd373becf",
-      "run_generated_at": "2026-09-23T23:04:36.411280+00:00",
+      "run_generated_at": "2026-09-24T17:05:08.803460+00:00",
       "reference_start": "2026-05-21T00:00:00.000",
       "reference_end": "2026-06-26T00:00:00.000",
       "training_start": "2025-06-20T00:00:00.000",
@@ -403,7 +403,7 @@
       "model_version": "one_day_rf_seed42_frozen",
       "model_type": "RandomForestRegressor",
       "model_identity": "local_sha256:f3461f2c54e5b3748930894f64e4938fbbd3f7516314f2135ca98cecd373becf",
-      "run_generated_at": "2026-09-23T23:04:36.411280+00:00",
+      "run_generated_at": "2026-09-24T17:05:08.803460+00:00",
       "reference_start": "2026-05-21T00:00:00.000",
       "reference_end": "2026-06-26T00:00:00.000",
       "training_start": "2025-06-20T00:00:00.000",
@@ -428,7 +428,7 @@
       "model_version": "one_day_rf_seed42_frozen",
       "model_type": "RandomForestRegressor",
       "model_identity": "local_sha256:f3461f2c54e5b3748930894f64e4938fbbd3f7516314f2135ca98cecd373becf",
-      "run_generated_at": "2026-09-23T23:04:36.411280+00:00",
+      "run_generated_at": "2026-09-24T17:05:08.803460+00:00",
       "reference_start": "2026-05-21T00:00:00.000",
       "reference_end": "2026-06-26T00:00:00.000",
       "training_start": "2025-06-20T00:00:00.000",
@@ -453,7 +453,7 @@
       "model_version": "one_day_rf_seed42_frozen",
       "model_type": "RandomForestRegressor",
       "model_identity": "local_sha256:f3461f2c54e5b3748930894f64e4938fbbd3f7516314f2135ca98cecd373becf",
-      "run_generated_at": "2026-09-23T23:04:36.411280+00:00",
+      "run_generated_at": "2026-09-24T17:05:08.803460+00:00",
       "reference_start": "2026-05-21T00:00:00.000",
       "reference_end": "2026-06-26T00:00:00.000",
       "training_start": "2025-06-20T00:00:00.000",
@@ -3486,13 +3486,13 @@
       "run_date": "2026-05-21T00:00:00.000",
       "daily_count": 870,
       "dataset_id": "attainx_applications_v3_seed42",
-      "predicted_count": 1149.5194568793,
+      "predicted_count": 1149.5194568794,
       "trailing_mean_baseline": 1104.0,
-      "absolute_error": 279.5194568793,
+      "absolute_error": 279.5194568794,
       "scenario": "Recorded replay",
       "window_number": 0,
       "evaluation_actual": 870.0,
-      "model_error": 279.5194568793,
+      "model_error": 279.5194568794,
       "baseline_error": 234.0
     },
     {
@@ -4536,13 +4536,13 @@
       "run_date": "2026-05-21T00:00:00.000",
       "daily_count": 870,
       "dataset_id": "attainx_applications_v3_seed42",
-      "predicted_count": 1149.5194568793,
+      "predicted_count": 1149.5194568794,
       "trailing_mean_baseline": 1104.0,
-      "absolute_error": 279.5194568793,
+      "absolute_error": 279.5194568794,
       "scenario": "Performance drift exercise",
       "window_number": 0,
       "evaluation_actual": 870.0,
-      "model_error": 279.5194568793,
+      "model_error": 279.5194568794,
       "baseline_error": 234.0
     },
     {
@@ -7693,7 +7693,7 @@
       "rule_fired": "xmr",
       "last_value": 670.0,
       "disposition": "Pending analyst review",
-      "source_name": "fictional_operational_feed",
+      "source_name": "synthetic_application_events",
       "dataset_id": "attainx_applications_v3_seed42"
     },
     {
@@ -7706,7 +7706,7 @@
       "rule_fired": "xmr, cusum, ewma",
       "last_value": 1150.0,
       "disposition": "Pending analyst review",
-      "source_name": "fictional_operational_feed",
+      "source_name": "synthetic_application_events",
       "dataset_id": "attainx_applications_v3_seed42"
     },
     {
@@ -7719,7 +7719,7 @@
       "rule_fired": "xmr, cusum, ewma",
       "last_value": 780.0,
       "disposition": "Pending analyst review",
-      "source_name": "fictional_operational_feed",
+      "source_name": "synthetic_application_events",
       "dataset_id": "attainx_applications_v3_seed42"
     },
     {
@@ -7732,7 +7732,7 @@
       "rule_fired": "xmr, cusum, ewma",
       "last_value": 1030.0,
       "disposition": "Pending analyst review",
-      "source_name": "fictional_operational_feed",
+      "source_name": "synthetic_application_events",
       "dataset_id": "attainx_applications_v3_seed42"
     },
     {
@@ -7745,7 +7745,7 @@
       "rule_fired": "cusum, ewma",
       "last_value": 1140.0,
       "disposition": "Pending analyst review",
-      "source_name": "fictional_operational_feed",
+      "source_name": "synthetic_application_events",
       "dataset_id": "attainx_applications_v3_seed42"
     },
     {
@@ -7758,7 +7758,7 @@
       "rule_fired": "cusum, ewma",
       "last_value": 1050.0,
       "disposition": "Pending analyst review",
-      "source_name": "fictional_operational_feed",
+      "source_name": "synthetic_application_events",
       "dataset_id": "attainx_applications_v3_seed42"
     },
     {
@@ -7771,7 +7771,7 @@
       "rule_fired": "ewma",
       "last_value": 1130.0,
       "disposition": "Pending analyst review",
-      "source_name": "fictional_operational_feed",
+      "source_name": "synthetic_application_events",
       "dataset_id": "attainx_applications_v3_seed42"
     },
     {
@@ -7784,7 +7784,7 @@
       "rule_fired": "xmr, ewma",
       "last_value": 890.0,
       "disposition": "Pending analyst review",
-      "source_name": "fictional_operational_feed",
+      "source_name": "synthetic_application_events",
       "dataset_id": "attainx_applications_v3_seed42"
     },
     {
@@ -7797,7 +7797,7 @@
       "rule_fired": "xmr, cusum, ewma",
       "last_value": 920.0,
       "disposition": "Pending analyst review",
-      "source_name": "fictional_operational_feed",
+      "source_name": "synthetic_application_events",
       "dataset_id": "attainx_applications_v3_seed42"
     },
     {
@@ -7810,7 +7810,7 @@
       "rule_fired": "xmr",
       "last_value": 850.0,
       "disposition": "Pending analyst review",
-      "source_name": "fictional_operational_feed",
+      "source_name": "synthetic_application_events",
       "dataset_id": "attainx_applications_v3_seed42"
     },
     {
@@ -7823,7 +7823,7 @@
       "rule_fired": "xmr",
       "last_value": 950.0,
       "disposition": "Pending analyst review",
-      "source_name": "fictional_operational_feed",
+      "source_name": "synthetic_application_events",
       "dataset_id": "attainx_applications_v3_seed42"
     },
     {
@@ -7836,7 +7836,7 @@
       "rule_fired": "xmr, cusum, ewma",
       "last_value": 860.0,
       "disposition": "Pending analyst review",
-      "source_name": "fictional_operational_feed",
+      "source_name": "synthetic_application_events",
       "dataset_id": "attainx_applications_v3_seed42"
     },
     {
@@ -7849,7 +7849,7 @@
       "rule_fired": "xmr, cusum, ewma",
       "last_value": 860.0,
       "disposition": "Pending analyst review",
-      "source_name": "fictional_operational_feed",
+      "source_name": "synthetic_application_events",
       "dataset_id": "attainx_applications_v3_seed42"
     },
     {
@@ -7862,7 +7862,7 @@
       "rule_fired": "cusum, ewma",
       "last_value": 1110.0,
       "disposition": "Pending analyst review",
-      "source_name": "fictional_operational_feed",
+      "source_name": "synthetic_application_events",
       "dataset_id": "attainx_applications_v3_seed42"
     },
     {
@@ -7875,7 +7875,7 @@
       "rule_fired": "cusum, ewma",
       "last_value": 1070.0,
       "disposition": "Pending analyst review",
-      "source_name": "fictional_operational_feed",
+      "source_name": "synthetic_application_events",
       "dataset_id": "attainx_applications_v3_seed42"
     }
   ]
